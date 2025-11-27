@@ -52,16 +52,18 @@ export function setupStudySystem(client) {
         .setTitle("📚 Study With Me")
         .setColor(0x5865F2)
         .setDescription(
-          "**Start your focused study session:**\n\n" +
-          "👥 **Join Group Queue** — Wait for 3 people to start together\n" +
-          "🚀 **Join Active Group** — Jump into an ongoing group session\n" +
-          "🎯 **Start Solo Pomodoro** — Create your own 25-minute focus session\n" +
-          "📊 **Show My Stats** — View your study progress\n\n" +
-          "**Notifications:**\n" +
-          "🔔 Get notified when someone joins the study queue\n\n" +
-          "*Empty rooms are automatically deleted after 3 minutes*"
+          "الدراسة مع غيرك دايم أسهل.\n" +
+          "اختر الطريقة اللي تناسبك:\n\n" +
+          "👥 **الدراسة مع الطموحين**\n" +
+          "• **Join Group Queue** — ادخل السرا, وإذا صرتوا 3 يسوي روم و يبدأ التايمر\n" +
+          "• **Join Active Group** — ادخل على قروب بادي\n\n" +
+          "🧭 **خيارات إضافية**\n" +
+          "• View My Progress — شوف إجمالي وقتك وجلساتك\n\n" +
+          "🔔 **التنبيهات**\n" +
+          "فعل النتبيهات اذا حاب تعرف اذا فيه قروب جديد"
         );
 
+      // Row 1 – Group study (primary)
       const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId("study_queue")
@@ -70,42 +72,55 @@ export function setupStudySystem(client) {
           .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
           .setCustomId("study_join_active")
-          .setLabel("Join Active Group")
-          .setEmoji("🚀")
-          .setStyle(ButtonStyle.Secondary),
+          .setLabel("Join Ongoing Group")
+          .setEmoji("🟢")
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      // Row 2 – Solo timer (low key)
+      const row2 = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId("study_solo")
-          .setLabel("Start Solo Pomodoro")
-          .setEmoji("🎯")
-          .setStyle(ButtonStyle.Success),
+          .setLabel("Quick Solo Timer")
+          .setEmoji("⏱️")
+          .setStyle(ButtonStyle.Secondary)
+      );
+
+      // Row 3 – Progress
+      const row3 = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId("study_stats")
-          .setLabel("Show My Stats")
+          .setLabel("View My Progress")
           .setEmoji("📊")
           .setStyle(ButtonStyle.Secondary)
       );
 
-      const row2 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId("study_queue_leave")
-          .setLabel("Leave Queue")
-          .setEmoji("🚪")
-          .setStyle(ButtonStyle.Danger),
+      // Row 4 – Notifications
+      const row4 = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId("study_role_add")
-          .setLabel("Get Notifications")
+          .setLabel("Enable Notifications")
           .setEmoji("🔔")
-          .setStyle(ButtonStyle.Primary),
+          .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
           .setCustomId("study_role_remove")
-          .setLabel("Remove Notifications")
+          .setLabel("Disable Notifications")
           .setEmoji("🔕")
           .setStyle(ButtonStyle.Secondary)
       );
 
+      // Row 5 – Exit
+      const row5 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("study_queue_leave")
+          .setLabel("Leave Queue")
+          .setEmoji("🟥")
+          .setStyle(ButtonStyle.Danger)
+      );
+
       await message.channel.send({
         embeds: [embed],
-        components: [row1, row2],
+        components: [row1, row2, row3, row4, row5],
       });
 
       await message.reply("Study control message posted!");
