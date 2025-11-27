@@ -138,7 +138,7 @@ export function setupStudySystem(client) {
     }
   });
 
-  // Voice state updates (handle empty rooms and mute new joiners)
+  // Voice state updates (handle empty rooms, mute new joiners, unmute leavers)
   client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     try {
       const channelIds = new Set();
@@ -155,7 +155,7 @@ export function setupStudySystem(client) {
         const vc = guild.channels.cache.get(channelId);
         if (!vc) continue;
 
-        // If someone joined this channel (not left), mute them if session is active
+        // If someone joined this channel, mute them if session is active
         if (newState.channelId === channelId && oldState.channelId !== channelId) {
           // User joined this channel
           const member = newState.member;
@@ -166,6 +166,21 @@ export function setupStudySystem(client) {
               console.log(`[Study] Muted ${member.user.username} who joined active session ${session.id}`);
             } catch (error) {
               console.error(`[Study] Failed to mute new joiner ${member.id}:`, error.message);
+            }
+          }
+        }
+
+        // If someone left this channel, unmute them so they're not muted elsewhere
+        if (oldState.channelId === channelId && newState.channelId !== channelId) {
+          // User left this channel
+          const member = oldState.member;
+          if (member && !member.user.bot && session.timer) {
+            // Session is still active, unmute them so mute doesn't persist
+            try {
+              await member.voice.setMute(false);
+              console.log(`[Study] Unmuted ${member.user.username} who left active session ${session.id}`);
+            } catch (error) {
+              console.error(`[Study] Failed to unmute leaver ${member.id}:`, error.message);
             }
           }
         }
