@@ -325,6 +325,11 @@ function delay(ms) {
 }
 
 async function endSession(session, client, reason) {
+  if (session.emptyTimeout) {
+    clearTimeout(session.emptyTimeout);
+    session.emptyTimeout = null;
+  }
+
   state.activeSessions.delete(session.voiceChannelId);
   session.endedAt = new Date();
 
