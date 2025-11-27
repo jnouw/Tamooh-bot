@@ -13,6 +13,7 @@ const {
 // ---- CONFIG ----
 // These can be configured per server in the future
 const STUDY_CHANNEL_ID = "1443362550447341609";
+const STUDY_LOG_CHANNEL_ID = "1443363449504530492"; // Channel for session logging
 const VOICE_CATEGORY_ID = null; // Set to a category ID if you want VCs created under a specific category
 const STUDY_ROLE_ID = "1443203557628186755"; // Role ID for study notifications
 const OWNER_ID = "274462470674972682";
@@ -33,6 +34,26 @@ const state = {
   queueGuild: null, // Guild where queue is active
   queueChannel: null, // Text channel where queue was started
 };
+
+/**
+ * Send a log message to the study log channel
+ */
+async function logToChannel(client, guildId, embed) {
+  try {
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return;
+
+    const logChannel = guild.channels.cache.get(STUDY_LOG_CHANNEL_ID);
+    if (!logChannel) {
+      console.warn("[Study] Log channel not found");
+      return;
+    }
+
+    await logChannel.send({ embeds: [embed] });
+  } catch (error) {
+    console.error("[Study] Failed to send log:", error.message);
+  }
+}
 
 /**
  * Setup the study system
@@ -257,12 +278,40 @@ async function handleSoloPomodoro(interaction, client) {
     // Create session
     const session = createSession("solo", guild.id, vc.id, interaction.channel.id, user.id);
 
+    // Move user to the voice channel if they're in one
+    const member = interaction.member;
+    let movedUser = false;
+    if (member.voice.channel) {
+      try {
+        await member.voice.setChannel(vc);
+        movedUser = true;
+        console.log(`[Study] Moved ${username} into solo session VC`);
+      } catch (error) {
+        console.error(`[Study] Failed to move user to VC:`, error.message);
+      }
+    }
+
     // Start 25-minute timer
     startPomodoroTimer(session, client);
 
+    // Log session start
+    const startEmbed = new EmbedBuilder()
+      .setTitle("📚 Solo Session Started")
+      .setColor(0x5865F2)
+      .addFields(
+        { name: "User", value: `<@${user.id}>`, inline: true },
+        { name: "Session ID", value: `#${session.id}`, inline: true },
+        { name: "Duration", value: "25 minutes", inline: true },
+        { name: "Voice Channel", value: `<#${vc.id}>`, inline: false }
+      )
+      .setTimestamp();
+    await logToChannel(client, guild.id, startEmbed);
+
     // Reply with jump link
     await interaction.editReply({
-      content: `✅ **Solo session created!**\n\nClick to join: <#${vc.id}>\n\n⏱️ 25-minute timer started. Good luck!`,
+      content: movedUser
+        ? `✅ **Solo session created!**\n\n⏱️ 25-minute timer started. Good luck!`
+        : `✅ **Solo session created!**\n\nClick to join: <#${vc.id}>\n\n⏱️ 25-minute timer started. Good luck!`,
     });
 
     console.log(`[Study] Solo session created for ${username}`);
@@ -287,6 +336,15 @@ async function handleGroupQueue(interaction, client) {
     return interaction.editReply({
       content: "You're already in the queue!",
     });
+  }
+
+  // Cancel any active solo session for this user
+  for (const [vcId, session] of state.activeSessions) {
+    if (session.type === "solo" && session.creatorId === userId) {
+      console.log(`[Study] Canceling user's solo session ${session.id} (joining group queue)`);
+      await cancelSession(session, client, "User joined group queue");
+      break; // User can only have one solo session
+    }
   }
 
   // Add to queue
@@ -349,9 +407,39 @@ async function handleJoinActive(interaction, client) {
     });
   }
 
+  const userId = interaction.user.id;
+
+  // Cancel any active solo session for this user
+  for (const [vcId, session] of state.activeSessions) {
+    if (session.type === "solo" && session.creatorId === userId) {
+      console.log(`[Study] Canceling user's solo session ${session.id} (joining active group)`);
+      await cancelSession(session, client, "User joined active group");
+      break; // User can only have one solo session
+    }
+  }
+
   const vcId = state.activeGroupSession.voiceChannelId;
+  const member = interaction.member;
+  let movedUser = false;
+
+  // Move user to the group voice channel if they're in one
+  if (member.voice.channel) {
+    try {
+      const vc = interaction.guild.channels.cache.get(vcId);
+      if (vc) {
+        await member.voice.setChannel(vc);
+        movedUser = true;
+        console.log(`[Study] Moved ${member.displayName || member.user.username} into active group session`);
+      }
+    } catch (error) {
+      console.error(`[Study] Failed to move user to group VC:`, error.message);
+    }
+  }
+
   await interaction.editReply({
-    content: `🚀 **Join the active group session:**\n\n<#${vcId}>`,
+    content: movedUser
+      ? `🚀 **Joined the active group session!**\n\n⏱️ Good luck!`
+      : `🚀 **Join the active group session:**\n\n<#${vcId}>`,
   });
 }
 
@@ -417,14 +505,47 @@ async function startGroupSession(guild, textChannel, client) {
     state.queueGuild = null;
     state.queueChannel = null;
 
+    // Move queued users who are in voice channels
+    let movedCount = 0;
+    for (const userId of queuedUsers) {
+      try {
+        const member = await guild.members.fetch(userId);
+        if (member.voice.channel) {
+          await member.voice.setChannel(vc);
+          movedCount++;
+          console.log(`[Study] Moved ${member.displayName || member.user.username} into group session`);
+        }
+      } catch (error) {
+        console.error(`[Study] Failed to move user ${userId} to group VC:`, error.message);
+      }
+    }
+
     // Announce
     const mentions = queuedUsers.map(id => `<@${id}>`).join(", ");
+    const announceContent = movedCount === queuedUsers.length
+      ? `🎉 **Group Pomodoro starting!**\n\n${mentions}\n\n⏱️ 25-minute session begins now!`
+      : `🎉 **Group Pomodoro starting!**\n\n${mentions}\n\nJoin the channel: <#${vc.id}>\n⏱️ 25-minute session begins now!`;
+
     await textChannel.send({
-      content: `🎉 **Group Pomodoro starting!**\n\n${mentions}\n\nJoin the channel: <#${vc.id}>\n⏱️ 25-minute session begins now!`
+      content: announceContent
     });
 
     // Start timer
     startPomodoroTimer(session, client);
+
+    // Log session start
+    const startEmbed = new EmbedBuilder()
+      .setTitle("👥 Group Session Started")
+      .setColor(0x57F287)
+      .addFields(
+        { name: "Participants", value: `${queuedUsers.length}`, inline: true },
+        { name: "Session ID", value: `#${session.id}`, inline: true },
+        { name: "Duration", value: "25 minutes", inline: true },
+        { name: "Voice Channel", value: `<#${vc.id}>`, inline: false },
+        { name: "Users", value: mentions, inline: false }
+      )
+      .setTimestamp();
+    await logToChannel(client, guild.id, startEmbed);
 
     console.log(`[Study] Group session started with ${queuedUsers.length} users`);
   } catch (error) {
@@ -541,8 +662,35 @@ async function completeSession(session, client) {
       }
 
       console.log(`[Study] Session ${session.id} completed with ${participantCount} participants`);
+
+      // Log completion to log channel
+      const logEmbed = new EmbedBuilder()
+        .setTitle("✅ Session Completed")
+        .setColor(0x57F287)
+        .addFields(
+          { name: "Session ID", value: `#${session.id}`, inline: true },
+          { name: "Type", value: session.type === "solo" ? "Solo" : "Group", inline: true },
+          { name: "Participants", value: `${participantCount}`, inline: true },
+          { name: "Duration", value: "25 minutes", inline: true },
+          { name: "Users", value: mentions, inline: false }
+        )
+        .setTimestamp();
+      await logToChannel(client, session.guildId, logEmbed);
     } else {
       console.log(`[Study] Session ${session.id} completed with no participants`);
+
+      // Log completion with no participants
+      const logEmbed = new EmbedBuilder()
+        .setTitle("✅ Session Completed")
+        .setColor(0x95A5A6)
+        .addFields(
+          { name: "Session ID", value: `#${session.id}`, inline: true },
+          { name: "Type", value: session.type === "solo" ? "Solo" : "Group", inline: true },
+          { name: "Participants", value: "0", inline: true },
+          { name: "Status", value: "No participants remained", inline: false }
+        )
+        .setTimestamp();
+      await logToChannel(client, session.guildId, logEmbed);
     }
 
     // Clear timers
@@ -583,6 +731,18 @@ async function cancelSession(session, client, reason) {
   console.log(`[Study] Canceling session ${session.id}: ${reason}`);
 
   try {
+    // Log cancellation
+    const logEmbed = new EmbedBuilder()
+      .setTitle("❌ Session Cancelled")
+      .setColor(0xE74C3C)
+      .addFields(
+        { name: "Session ID", value: `#${session.id}`, inline: true },
+        { name: "Type", value: session.type === "solo" ? "Solo" : "Group", inline: true },
+        { name: "Reason", value: reason, inline: false }
+      )
+      .setTimestamp();
+    await logToChannel(client, session.guildId, logEmbed);
+
     // Unmute all members before cancelling
     await setVoiceChannelMute(client, session, false);
 
