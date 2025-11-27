@@ -79,6 +79,11 @@ const commands = [
             )
         )
     )
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName('study_leaderboard')
+    .setDescription('Show top students by study time')
     .toJSON()
 ];
 

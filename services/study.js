@@ -1,9 +1,7 @@
 import Discord from "discord.js";
+import { studyStatsStore } from "./StudyStatsStore.js";
 
 const {
-  Client,
-  GatewayIntentBits,
-  Partials,
   Events,
   ButtonStyle,
   EmbedBuilder,
@@ -12,74 +10,71 @@ const {
   ChannelType
 } = Discord;
 
-
-import fs from "fs";
-
 // ---- CONFIG ----
+// These can be configured per server in the future
 const STUDY_CHANNEL_ID = "1443362550447341609";
-const LOG_CHANNEL_ID = "1443363449504530492";
-const STUDY_ROLE_ID = "1443203557628186755";
+const VOICE_CATEGORY_ID = null; // Set to a category ID if you want VCs created under a specific category
 const OWNER_ID = "274462470674972682";
 
-const FOCUS_MS = 25 * 60 * 1000;
-const BREAK_MS = 5 * 60 * 1000;
-const EMPTY_TIMEOUT_MS = 3 * 60 * 1000;
-const LOG_FILE_PATH = "./study_sessions.log";
+const FOCUS_MS = 25 * 60 * 1000; // 25 minutes
+const EMPTY_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes
+const DELETE_DELAY_MS = 60 * 1000; // 60 seconds after completion
+const GROUP_QUEUE_THRESHOLD = 3; // Number of users needed to start group session
 
 // ---- STATE ----
 const state = {
   sessionCounter: 0,
-  activeSessions: new Map(),
-  pomodoroQueue: {
-    active: false,
-    users: new Set(),
-    textChannelId: null,
-    startedByUserId: null,
-  },
+  activeSessions: new Map(), // voiceChannelId -> session
+  groupQueue: new Set(), // Set of user IDs waiting for group session
+  activeGroupSession: null, // { voiceChannelId, textChannelId } or null
 };
 
-// Run on bot startup
+/**
+ * Setup the study system
+ * @param {Discord.Client} client - Discord client
+ */
 export function setupStudySystem(client) {
-  console.log("[Study] Loaded study system.");
+  console.log("[Study] Study system loaded");
 
-  // Owner-only command to post the study panel
+  // Owner command to post control message
   client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
-    console.log("[Study] Saw message:", message.content, "from", message.author.id);
-
     if (message.author.id !== OWNER_ID) return;
+    if (message.content.trim() !== "!initstudy") return;
 
-
-    if (message.content.trim() === "!initstudy") {
-      if (message.channel.id !== STUDY_CHANNEL_ID) {
-        return message.reply("Use this in the study channel.");
-      }
-
+    try {
       const embed = new EmbedBuilder()
-        .setTitle("📚 نذاكر سوا - Study With Me")
-        .setColor(0x1e6649)
+        .setTitle("📚 Study With Me")
+        .setColor(0x5865F2)
         .setDescription(
-          [
-            "1️⃣ **Start study now** — يفتح جلسة مذاكرة مباشرة.",
-            "2️⃣ **Pomodoro Mode (Join Queue)** — يدخل الطابور. تبدأ الجلسة لما نكمل 3 أشخاص.",
-            "3️⃣ **Join group** — تنضم لطابور موجود.",
-            "",
-            "الروم يحذف نفسه بعد 3 دقائق من يكون فاضي.",
-          ].join("\n")
+          "**Start your focused study session:**\n\n" +
+          "🎯 **Start Solo Pomodoro** — Create your own 25-minute focus session\n" +
+          "👥 **Join Group Queue** — Wait for 3 people to start together\n" +
+          "🚀 **Join Active Group** — Jump into an ongoing group session\n" +
+          "📊 **Show My Stats** — View your study progress\n\n" +
+          "*Empty rooms are automatically deleted after 3 minutes*"
         );
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId("study_now")
-          .setLabel("Start study now")
+          .setCustomId("study_solo")
+          .setLabel("Start Solo Pomodoro")
+          .setEmoji("🎯")
           .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
-          .setCustomId("pomodoro_queue")
-          .setLabel("Pomodoro Mode (Join Queue)")
+          .setCustomId("study_queue")
+          .setLabel("Join Group Queue")
+          .setEmoji("👥")
           .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
-          .setCustomId("pomodoro_join")
-          .setLabel("Join group")
+          .setCustomId("study_join_active")
+          .setLabel("Join Active Group")
+          .setEmoji("🚀")
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId("study_stats")
+          .setLabel("Show My Stats")
+          .setEmoji("📊")
           .setStyle(ButtonStyle.Secondary)
       );
 
@@ -88,282 +83,406 @@ export function setupStudySystem(client) {
         components: [row],
       });
 
-      await message.reply("Study panel posted. Pin it.");
+      await message.reply("Study control message posted!");
+    } catch (error) {
+      console.error("[Study] Error posting control message:", error);
+      message.reply("Error posting control message").catch(() => {});
     }
   });
 
-  // ---- BUTTON HANDLERS ----
+  // Button handlers
   client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isButton()) return;
 
     try {
-      if (interaction.customId === "study_now")
-        return handleStudyNow(interaction);
-
-      if (interaction.customId === "pomodoro_queue")
-        return handlePomodoroQueue(interaction);
-
-      if (interaction.customId === "pomodoro_join")
-        return handlePomodoroJoin(interaction);
-    } catch (err) {
-      console.error(err);
-      if (!interaction.replied)
+      switch (interaction.customId) {
+        case "study_solo":
+          await handleSoloPomodoro(interaction, client);
+          break;
+        case "study_queue":
+          await handleGroupQueue(interaction, client);
+          break;
+        case "study_join_active":
+          await handleJoinActive(interaction, client);
+          break;
+        case "study_stats":
+          await handleShowStats(interaction);
+          break;
+      }
+    } catch (error) {
+      console.error("[Study] Button error:", error);
+      if (!interaction.replied && !interaction.deferred) {
         interaction.reply({
-          content: "Oops… خطأ بسيط، حاول مرة ثانية.",
-          ephemeral: true,
-        });
+          content: "Something went wrong. Please try again.",
+          ephemeral: true
+        }).catch(() => {});
+      }
     }
   });
 
-  // ---- VOICE UPDATE ----
+  // Voice state updates (handle empty rooms)
   client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     try {
-      const joined = newState.channelId;
-      const left = oldState.channelId;
+      const channelIds = new Set();
+      if (oldState.channelId) channelIds.add(oldState.channelId);
+      if (newState.channelId) channelIds.add(newState.channelId);
 
-      const checkSet = new Set();
-      if (joined) checkSet.add(joined);
-      if (left) checkSet.add(left);
-
-      for (const chId of checkSet) {
-        const session = state.activeSessions.get(chId);
+      for (const channelId of channelIds) {
+        const session = state.activeSessions.get(channelId);
         if (!session) continue;
 
-        const guild = await client.guilds.fetch(session.guildId);
-        const vc = guild.channels.cache.get(chId);
+        const guild = client.guilds.cache.get(session.guildId);
+        if (!guild) continue;
 
-        const memberCount = vc?.members?.size || 0;
+        const vc = guild.channels.cache.get(channelId);
+        if (!vc) continue;
 
+        const memberCount = vc.members.filter(m => !m.user.bot).size;
+
+        // Start empty timeout if room is empty
         if (memberCount === 0 && !session.emptyTimeout) {
           session.emptyTimeout = setTimeout(async () => {
-            const refreshed = guild.channels.cache.get(chId);
-            if (!refreshed || refreshed.members.size === 0) {
-              endSession(session, client, "Empty room timeout");
-            } else {
-              session.emptyTimeout = null;
+            const currentVc = guild.channels.cache.get(channelId);
+            const currentCount = currentVc?.members.filter(m => !m.user.bot).size || 0;
+
+            if (currentCount === 0) {
+              console.log(`[Study] Canceling session ${session.id} - empty room`);
+              await cancelSession(session, client, "Empty room timeout");
             }
           }, EMPTY_TIMEOUT_MS);
         }
 
+        // Clear timeout if someone joins
         if (memberCount > 0 && session.emptyTimeout) {
           clearTimeout(session.emptyTimeout);
           session.emptyTimeout = null;
         }
       }
-    } catch (err) {
-      console.error("VoiceState error:", err);
+    } catch (error) {
+      console.error("[Study] Voice state error:", error);
     }
   });
 }
 
-// ---- HELPERS ----
-
-async function handleStudyNow(interaction) {
+/**
+ * Handle solo Pomodoro button click
+ */
+async function handleSoloPomodoro(interaction, client) {
   await interaction.deferReply({ ephemeral: true });
 
   const guild = interaction.guild;
-  const vc = await guild.channels.create({
-    name: "Study Session",
-    type: ChannelType.GuildVoice,
-  });
+  const user = interaction.user;
+  const username = interaction.member.displayName || user.username;
 
-  const session = createSession("normal", guild.id, vc.id, interaction.channel.id);
+  try {
+    // Create voice channel
+    const vcOptions = {
+      name: `Study – Solo – ${username}`,
+      type: ChannelType.GuildVoice,
+    };
 
-  const ping = STUDY_ROLE_ID ? `<@&${STUDY_ROLE_ID}>` : "اللي حاب يذاكر";
-  await interaction.channel.send(`${ping}\nجلسة مذاكرة بدأت: <#${vc.id}>`);
+    if (VOICE_CATEGORY_ID) {
+      vcOptions.parent = VOICE_CATEGORY_ID;
+    }
 
-  // Move user if in VC
-  const member = await guild.members.fetch(interaction.user.id);
-  if (member.voice?.channel) {
-    await member.voice.setChannel(vc).catch(() => {});
+    const vc = await guild.channels.create(vcOptions);
+
+    // Create session
+    const session = createSession("solo", guild.id, vc.id, interaction.channel.id, user.id);
+
+    // Start 25-minute timer
+    startPomodoroTimer(session, client);
+
+    // Reply with jump link
+    await interaction.editReply({
+      content: `✅ **Solo session created!**\n\nClick to join: <#${vc.id}>\n\n⏱️ 25-minute timer started. Good luck!`,
+    });
+
+    console.log(`[Study] Solo session created for ${username}`);
+  } catch (error) {
+    console.error("[Study] Error creating solo session:", error);
+    await interaction.editReply({
+      content: "Failed to create study channel. Please try again.",
+    });
   }
-
-  interaction.editReply(`تم فتح روم: <#${vc.id}>`);
 }
 
-async function handlePomodoroQueue(interaction) {
+/**
+ * Handle group queue button click
+ */
+async function handleGroupQueue(interaction, client) {
   await interaction.deferReply({ ephemeral: true });
 
-  const queue = state.pomodoroQueue;
   const userId = interaction.user.id;
 
-  // If no queue exists, create one
-  if (!queue.active) {
-    queue.active = true;
-    queue.users = new Set([userId]);
-    queue.textChannelId = interaction.channel.id;
-    queue.startedByUserId = userId;
-
-    const ping = STUDY_ROLE_ID ? `<@&${STUDY_ROLE_ID}>` : "اللي حاب يذاكر";
-    await interaction.channel.send(
-      `${ping}\nبدينا طابور بومودورو 25+5.\nنحتاج **3 أشخاص**.\nالحالي: <@${userId}>`
-    );
-
-    return interaction.editReply("دخلناك الطابور.");
+  // Check if already in queue
+  if (state.groupQueue.has(userId)) {
+    return interaction.editReply({
+      content: "You're already in the queue!",
+    });
   }
 
-  // Queue exists: join it
-  if (queue.users.has(userId)) {
-    return interaction.editReply("انت موجود في الطابور.");
-  }
+  // Add to queue
+  state.groupQueue.add(userId);
+  const queueSize = state.groupQueue.size;
 
-  queue.users.add(userId);
-
-  const names = [...queue.users].map((id) => `<@${id}>`).join(", ");
-  await interaction.channel.send(`انضم شخص جديد.\nالآن في الطابور: ${names}`);
-
-  interaction.editReply("انضمّيت.");
-
-  maybeStartPomodoroSession(interaction.guild);
-}
-
-async function handlePomodoroJoin(interaction) {
-  await interaction.deferReply({ ephemeral: true });
-
-  const queue = state.pomodoroQueue;
-  const userId = interaction.user.id;
-
-  if (!queue.active)
-    return interaction.editReply("لا يوجد طابور. استخدم Pomodoro Mode لتبدأ.");
-
-  if (queue.users.has(userId))
-    return interaction.editReply("انت موجود في الطابور.");
-
-  queue.users.add(userId);
-  const names = [...queue.users].map((id) => `<@${id}>`).join(", ");
-
-  await interaction.channel.send(`انضم شخص جديد.\nالآن: ${names}`);
-  interaction.editReply("انضمّيت.");
-
-  maybeStartPomodoroSession(interaction.guild);
-}
-
-async function maybeStartPomodoroSession(guild) {
-  const queue = state.pomodoroQueue;
-  if (!queue.active) return;
-  if (queue.users.size < 3) return;
-
-  // Start session
-  queue.active = false;
-
-  const textChannel = await guild.channels.fetch(queue.textChannelId);
-  const vc = await guild.channels.create({
-    name: "Study - Pomodoro",
-    type: ChannelType.GuildVoice,
+  await interaction.editReply({
+    content: `✅ Added to group queue!\n\n**Queue size:** ${queueSize}/${GROUP_QUEUE_THRESHOLD}`,
   });
 
-  const session = createSession("pomodoro", guild.id, vc.id, textChannel.id);
-  for (const uid of queue.users) session.participants.add(uid);
+  // Announce in channel
+  await interaction.channel.send({
+    content: `👥 <@${userId}> joined the study queue (${queueSize}/${GROUP_QUEUE_THRESHOLD})`
+  });
 
-  const ping = STUDY_ROLE_ID ? `<@&${STUDY_ROLE_ID}>` : "اللي حاب يذاكر";
-
-  await textChannel.send(
-    `${ping}\nبدأت جلسة بومودورو في <#${vc.id}>.\n**${FOCUS_MS/60000} دقيقة تركيز + ${
-      BREAK_MS / 60000
-    } دقيقة راحة**`
-  );
-
-  // Move all queued users
-  for (const uid of queue.users) {
-    try {
-      const m = await guild.members.fetch(uid);
-      if (m.voice?.channel) await m.voice.setChannel(vc);
-    } catch {}
+  // Start session if threshold reached
+  if (queueSize >= GROUP_QUEUE_THRESHOLD) {
+    await startGroupSession(interaction.guild, interaction.channel, client);
   }
-
-  // Clear queue
-  queue.users.clear();
-  queue.textChannelId = null;
-  queue.startedByUserId = null;
-
-  startPomodoroCycles(session, guild);
 }
 
-function createSession(type, guildId, vcId, textId) {
+/**
+ * Handle join active group button click
+ */
+async function handleJoinActive(interaction, client) {
+  await interaction.deferReply({ ephemeral: true });
+
+  if (!state.activeGroupSession) {
+    return interaction.editReply({
+      content: "No active group session right now. Use **Join Group Queue** to start one!",
+    });
+  }
+
+  const vcId = state.activeGroupSession.voiceChannelId;
+  await interaction.editReply({
+    content: `🚀 **Join the active group session:**\n\n<#${vcId}>`,
+  });
+}
+
+/**
+ * Handle show stats button click
+ */
+async function handleShowStats(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  const userId = interaction.user.id;
+  const guildId = interaction.guild.id;
+
+  const stats = studyStatsStore.getUserStats(userId, guildId);
+
+  const embed = new EmbedBuilder()
+    .setTitle("📊 Your Study Stats")
+    .setColor(0x5865F2)
+    .addFields(
+      { name: "Total Sessions", value: `${stats.totalSessions}`, inline: true },
+      { name: "Total Minutes", value: `${stats.totalMinutes}`, inline: true },
+      { name: "Total Hours", value: `${stats.totalHours}`, inline: true }
+    )
+    .setFooter({ text: getMotivationalMessage(stats.totalSessions) });
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
+/**
+ * Start a group session when queue threshold is reached
+ */
+async function startGroupSession(guild, textChannel, client) {
+  try {
+    // Create group VC
+    const vcOptions = {
+      name: "Study – Pomodoro Group",
+      type: ChannelType.GuildVoice,
+    };
+
+    if (VOICE_CATEGORY_ID) {
+      vcOptions.parent = VOICE_CATEGORY_ID;
+    }
+
+    const vc = await guild.channels.create(vcOptions);
+
+    // Create session
+    const session = createSession("group", guild.id, vc.id, textChannel.id, null);
+
+    // Set active group session
+    state.activeGroupSession = {
+      voiceChannelId: vc.id,
+      textChannelId: textChannel.id
+    };
+
+    // Get queued users
+    const queuedUsers = Array.from(state.groupQueue);
+
+    // Clear queue
+    state.groupQueue.clear();
+
+    // Announce
+    const mentions = queuedUsers.map(id => `<@${id}>`).join(", ");
+    await textChannel.send({
+      content: `🎉 **Group Pomodoro starting!**\n\n${mentions}\n\nJoin the channel: <#${vc.id}>\n⏱️ 25-minute session begins now!`
+    });
+
+    // Start timer
+    startPomodoroTimer(session, client);
+
+    console.log(`[Study] Group session started with ${queuedUsers.length} users`);
+  } catch (error) {
+    console.error("[Study] Error starting group session:", error);
+  }
+}
+
+/**
+ * Create a new study session
+ */
+function createSession(type, guildId, vcId, textId, creatorId) {
   const id = ++state.sessionCounter;
   const session = {
     id,
-    type,
+    type, // "solo" or "group"
     guildId,
     voiceChannelId: vcId,
     textChannelId: textId,
-    startedAt: new Date(),
-    endedAt: null,
-    participants: new Set(),
+    creatorId, // Only for solo sessions
+    startedAt: Date.now(),
+    timer: null,
     emptyTimeout: null,
-    pomodoro: type === "pomodoro" ? { cycle: 1, timer: null } : null,
+    completed: false,
   };
 
   state.activeSessions.set(vcId, session);
   return session;
 }
 
-async function startPomodoroCycles(session, guild) {
-  const textChannel = await guild.channels.fetch(session.textChannelId);
-
-  async function runCycle() {
-    if (!state.activeSessions.has(session.voiceChannelId)) return;
-
-    await textChannel.send(`⏱️ دورة ${session.pomodoro.cycle}: تركيز ${FOCUS_MS/60000} دقيقة.`);
-
-    await delay(FOCUS_MS);
-    if (!state.activeSessions.has(session.voiceChannelId)) return;
-
-    await textChannel.send(`☕ استراحة ${BREAK_MS/60000} دقائق.`);
-    await delay(BREAK_MS);
-    if (!state.activeSessions.has(session.voiceChannelId)) return;
-
-    session.pomodoro.cycle++;
-    runCycle();
-  }
-
-  runCycle();
+/**
+ * Start 25-minute Pomodoro timer
+ */
+function startPomodoroTimer(session, client) {
+  session.timer = setTimeout(async () => {
+    await completeSession(session, client);
+  }, FOCUS_MS);
 }
 
-function delay(ms) {
-  return new Promise((res) => setTimeout(res, ms));
-}
+/**
+ * Complete a session successfully
+ */
+async function completeSession(session, client) {
+  if (session.completed) return;
+  session.completed = true;
 
-async function endSession(session, client, reason) {
-  if (session.emptyTimeout) {
-    clearTimeout(session.emptyTimeout);
-    session.emptyTimeout = null;
-  }
-
-  state.activeSessions.delete(session.voiceChannelId);
-  session.endedAt = new Date();
+  console.log(`[Study] Completing session ${session.id}`);
 
   try {
-    const guild = await client.guilds.fetch(session.guildId);
-    const vc = guild.channels.cache.get(session.voiceChannelId);
-    if (vc) await vc.delete(reason || "Session end");
-  } catch {}
+    const guild = client.guilds.cache.get(session.guildId);
+    if (!guild) return;
 
-  logSession(session, client);
+    const vc = guild.channels.cache.get(session.voiceChannelId);
+    const textChannel = guild.channels.cache.get(session.textChannelId);
+
+    // Get participants (non-bot members)
+    const participants = vc?.members.filter(m => !m.user.bot) || new Map();
+    const participantCount = participants.size;
+
+    if (participantCount > 0) {
+      // Log completion for each participant
+      for (const [userId] of participants) {
+        await studyStatsStore.recordSession(userId, session.guildId, 25);
+      }
+
+      // Post summary
+      const mentions = Array.from(participants.keys()).map(id => `<@${id}>`).join(", ");
+      const embed = new EmbedBuilder()
+        .setTitle("✅ Study Session Completed")
+        .setColor(0x57F287)
+        .setDescription(
+          `**Duration:** 25 minutes\n` +
+          `**Participants:** ${participantCount}\n\n` +
+          `${mentions}\n\n` +
+          `Great work! 🎉`
+        )
+        .setTimestamp();
+
+      if (textChannel) {
+        await textChannel.send({ embeds: [embed] });
+      }
+
+      console.log(`[Study] Session ${session.id} completed with ${participantCount} participants`);
+    } else {
+      console.log(`[Study] Session ${session.id} completed with no participants`);
+    }
+
+    // Clear timers
+    if (session.timer) clearTimeout(session.timer);
+    if (session.emptyTimeout) clearTimeout(session.emptyTimeout);
+
+    // Remove from active sessions
+    state.activeSessions.delete(session.voiceChannelId);
+
+    // Clear active group session if this was a group session
+    if (session.type === "group" && state.activeGroupSession?.voiceChannelId === session.voiceChannelId) {
+      state.activeGroupSession = null;
+    }
+
+    // Delete VC after delay
+    setTimeout(async () => {
+      try {
+        if (vc) {
+          await vc.delete("Session completed");
+        }
+      } catch (error) {
+        console.error("[Study] Error deleting VC:", error);
+      }
+    }, DELETE_DELAY_MS);
+
+  } catch (error) {
+    console.error("[Study] Error completing session:", error);
+  }
 }
 
-function logSession(session, client) {
-  // Write to file
-  const data = {
-    id: session.id,
-    type: session.type,
-    startedAt: session.startedAt,
-    endedAt: session.endedAt,
-    duration:
-      (session.endedAt - session.startedAt) / 60000,
-    participants: [...session.participants],
-  };
-  fs.appendFileSync(LOG_FILE_PATH, JSON.stringify(data) + "\n");
+/**
+ * Cancel a session (empty room)
+ */
+async function cancelSession(session, client, reason) {
+  if (session.completed) return;
+  session.completed = true;
 
-  // Log channel
-  if (!LOG_CHANNEL_ID) return;
-  client.channels.fetch(LOG_CHANNEL_ID).then((ch) => {
-    ch?.send(
-      `📝 **Session #${session.id}** ended.\nDuration: ${
-        data.duration
-      } min\nParticipants: ${data.participants
-        .map((id) => `<@${id}>`)
-        .join(", ")}`
-    );
-  });
+  console.log(`[Study] Canceling session ${session.id}: ${reason}`);
+
+  try {
+    // Clear timers
+    if (session.timer) clearTimeout(session.timer);
+    if (session.emptyTimeout) clearTimeout(session.emptyTimeout);
+
+    // Remove from active sessions
+    state.activeSessions.delete(session.voiceChannelId);
+
+    // Clear active group session if this was a group session
+    if (session.type === "group" && state.activeGroupSession?.voiceChannelId === session.voiceChannelId) {
+      state.activeGroupSession = null;
+    }
+
+    // Delete VC immediately
+    const guild = client.guilds.cache.get(session.guildId);
+    if (guild) {
+      const vc = guild.channels.cache.get(session.voiceChannelId);
+      if (vc) {
+        await vc.delete(reason);
+      }
+    }
+
+    // No stats logged for canceled sessions
+  } catch (error) {
+    console.error("[Study] Error canceling session:", error);
+  }
+}
+
+/**
+ * Get a motivational message based on session count
+ */
+function getMotivationalMessage(sessions) {
+  if (sessions === 0) return "Start your first session!";
+  if (sessions < 5) return "Great start! Keep it up!";
+  if (sessions < 10) return "You're building a solid habit!";
+  if (sessions < 25) return "Impressive dedication!";
+  if (sessions < 50) return "You're on fire! 🔥";
+  if (sessions < 100) return "Study master in the making!";
+  return "Legendary dedication! 🏆";
 }
