@@ -28,7 +28,7 @@ import {
 } from "./utils/helpers.js";
 import { ScoreStore } from "./services/ScoreStore.js";
 import { sanitizeJavaCode } from "./utils/sanitize.js"; // NEW IMPORT
-import { setupStudySystem } from "./services/study.js"; // ✅ STUDY FEATURE
+import { setupStudySystem, handleSoloPomodoro, handleGroupQueue, handleJoinActive, handleShowStats } from "./services/study.js"; // ✅ STUDY FEATURE
 import { studyStatsStore } from "./services/StudyStatsStore.js"; // ✅ STUDY STATS
 
 // Initialize services
@@ -348,7 +348,24 @@ async function handleQuizStart(interaction) {
 }
 
 async function handleButton(interaction) {
-  const parts = interaction.customId.split(":");
+  const customId = interaction.customId;
+
+  // Study system buttons (no session ID needed)
+  if (customId === "study_solo") {
+    return await handleSoloPomodoro(interaction, interaction.client);
+  }
+  if (customId === "study_queue") {
+    return await handleGroupQueue(interaction, interaction.client);
+  }
+  if (customId === "study_join_active") {
+    return await handleJoinActive(interaction, interaction.client);
+  }
+  if (customId === "study_stats") {
+    return await handleShowStats(interaction);
+  }
+
+  // Quiz buttons (have session IDs)
+  const parts = customId.split(":");
   const kind = parts[0];
 
   // Resume / cancel flow

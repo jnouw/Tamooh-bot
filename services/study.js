@@ -90,36 +90,6 @@ export function setupStudySystem(client) {
     }
   });
 
-  // Button handlers
-  client.on(Events.InteractionCreate, async (interaction) => {
-    if (!interaction.isButton()) return;
-
-    try {
-      switch (interaction.customId) {
-        case "study_solo":
-          await handleSoloPomodoro(interaction, client);
-          break;
-        case "study_queue":
-          await handleGroupQueue(interaction, client);
-          break;
-        case "study_join_active":
-          await handleJoinActive(interaction, client);
-          break;
-        case "study_stats":
-          await handleShowStats(interaction);
-          break;
-      }
-    } catch (error) {
-      console.error("[Study] Button error:", error);
-      if (!interaction.replied && !interaction.deferred) {
-        interaction.reply({
-          content: "Something went wrong. Please try again.",
-          ephemeral: true
-        }).catch(() => {});
-      }
-    }
-  });
-
   // Voice state updates (handle empty rooms)
   client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     try {
@@ -486,3 +456,13 @@ function getMotivationalMessage(sessions) {
   if (sessions < 100) return "Study master in the making!";
   return "Legendary dedication! 🏆";
 }
+
+/**
+ * Export button handlers for use in main button handler
+ */
+export {
+  handleSoloPomodoro,
+  handleGroupQueue,
+  handleJoinActive,
+  handleShowStats
+};
