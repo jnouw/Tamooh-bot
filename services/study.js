@@ -289,6 +289,15 @@ async function handleGroupQueue(interaction, client) {
     });
   }
 
+  // Cancel any active solo session for this user
+  for (const [vcId, session] of state.activeSessions) {
+    if (session.type === "solo" && session.creatorId === userId) {
+      console.log(`[Study] Canceling user's solo session ${session.id} (joining group queue)`);
+      await cancelSession(session, client, "User joined group queue");
+      break; // User can only have one solo session
+    }
+  }
+
   // Add to queue
   state.groupQueue.add(userId);
   const queueSize = state.groupQueue.size;
@@ -347,6 +356,17 @@ async function handleJoinActive(interaction, client) {
     return interaction.editReply({
       content: "No active group session right now. Use **Join Group Queue** to start one!",
     });
+  }
+
+  const userId = interaction.user.id;
+
+  // Cancel any active solo session for this user
+  for (const [vcId, session] of state.activeSessions) {
+    if (session.type === "solo" && session.creatorId === userId) {
+      console.log(`[Study] Canceling user's solo session ${session.id} (joining active group)`);
+      await cancelSession(session, client, "User joined active group");
+      break; // User can only have one solo session
+    }
   }
 
   const vcId = state.activeGroupSession.voiceChannelId;
