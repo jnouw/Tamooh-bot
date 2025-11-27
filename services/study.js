@@ -382,9 +382,26 @@ async function handleGroupQueue(interaction, client) {
       ? `${rolePing} 👥 <@${userId}> joined the study queue! **(${queueSize}/${GROUP_QUEUE_THRESHOLD})**\n\nJoin now to start a group session!`
       : `👥 <@${userId}> joined the study queue (${queueSize}/${GROUP_QUEUE_THRESHOLD})`;
 
-    await interaction.channel.send({
-      content: announcement
-    });
+    try {
+      await interaction.channel.send({
+        content: announcement,
+        allowedMentions: {
+          roles: STUDY_ROLE_ID ? [STUDY_ROLE_ID] : [],
+          users: [userId]
+        }
+      });
+    } catch (error) {
+      // If role ping fails (missing permissions), send without role ping
+      if (error.code === 50013) {
+        console.warn('[Study] Missing permission to mention role, sending without role ping');
+        await interaction.channel.send({
+          content: `👥 <@${userId}> joined the study queue! **(${queueSize}/${GROUP_QUEUE_THRESHOLD})**\n\nJoin now to start a group session!`,
+          allowedMentions: { users: [userId] }
+        });
+      } else {
+        console.error('[Study] Failed to send queue announcement:', error);
+      }
+    }
   }
 
   // Start session if threshold reached
@@ -530,7 +547,8 @@ async function startGroupSession(guild, textChannel, client) {
       : `🎉 **Group Pomodoro starting!**\n\n${mentions}\n\nJoin the channel: <#${vc.id}>\n⏱️ 25-minute session begins now!`;
 
     await textChannel.send({
-      content: announceContent
+      content: announceContent,
+      allowedMentions: { users: queuedUsers }
     });
 
     // Start timer
@@ -826,7 +844,8 @@ async function handleQueueLeave(interaction) {
   // Announce if queue still has people
   if (queueSize > 0) {
     await interaction.channel.send({
-      content: `👋 <@${userId}> left the study queue (${queueSize}/${GROUP_QUEUE_THRESHOLD})`
+      content: `👋 <@${userId}> left the study queue (${queueSize}/${GROUP_QUEUE_THRESHOLD})`,
+      allowedMentions: { users: [userId] }
     });
   }
 }
