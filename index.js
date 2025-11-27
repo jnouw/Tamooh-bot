@@ -29,6 +29,7 @@ import {
 import { ScoreStore } from "./services/ScoreStore.js";
 import { sanitizeJavaCode } from "./utils/sanitize.js"; // NEW IMPORT
 import { setupStudySystem } from "./services/study.js"; // ✅ STUDY FEATURE
+import { studyStatsStore } from "./services/StudyStatsStore.js"; // ✅ STUDY STATS
 
 // Initialize services
 const questionLoader = new QuestionLoader();
@@ -44,6 +45,7 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildVoiceStates, // ✅ Required for study system
   ],
 });
 
@@ -132,8 +134,6 @@ client.on("interactionCreate", async (interaction) => {
  * Handle slash commands
  */
 async function handleSlashCommand(interaction) {
-  if (interaction.commandName !== "quiz") return;
-
   // Lock to Qimah guild if env is set
   if (
     process.env.QIMAH_GUILD_ID &&
@@ -146,13 +146,17 @@ async function handleSlashCommand(interaction) {
     return;
   }
 
-  const subcommand = interaction.options.getSubcommand();
-  if (subcommand === "start") {
-    await handleQuizStart(interaction);
-  } else if (subcommand === "leaderboard") {
-    await handleLeaderboard(interaction);
-  } else if (subcommand === "stats") {
-    await handleMyStats(interaction);
+  if (interaction.commandName === "quiz") {
+    const subcommand = interaction.options.getSubcommand();
+    if (subcommand === "start") {
+      await handleQuizStart(interaction);
+    } else if (subcommand === "leaderboard") {
+      await handleLeaderboard(interaction);
+    } else if (subcommand === "stats") {
+      await handleMyStats(interaction);
+    }
+  } else if (interaction.commandName === "study_leaderboard") {
+    await handleStudyLeaderboard(interaction);
   }
 }
 
@@ -1273,6 +1277,35 @@ async function handleMyStats(interaction) {
     .setColor("#57F287");
 
   await interaction.reply({ embeds: [embed], ephemeral: true });
+}
+
+/**
+ * Handle study leaderboard command
+ */
+async function handleStudyLeaderboard(interaction) {
+  await interaction.deferReply({ ephemeral: false });
+
+  const leaderboard = studyStatsStore.getLeaderboard(interaction.guildId, 10);
+
+  if (leaderboard.length === 0) {
+    await interaction.editReply({
+      content: "📚 No study sessions recorded yet. Be the first to start!",
+    });
+    return;
+  }
+
+  const lines = leaderboard.map((entry, i) => {
+    const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `**${i + 1}.**`;
+    return `${medal} <@${entry.userId}> — **${entry.totalHours}h** (${entry.totalSessions} sessions)`;
+  });
+
+  const embed = new EmbedBuilder()
+    .setTitle("📚 Study Leaderboard")
+    .setDescription(lines.join("\n"))
+    .setColor(0x5865F2)
+    .setFooter({ text: "Keep up the great work!" });
+
+  await interaction.editReply({ embeds: [embed] });
 }
 
 // Graceful shutdown
