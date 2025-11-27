@@ -1,0 +1,161 @@
+[
+  {
+    "id": "code-psu-01",
+    "chapter": "strings",
+    "language": "java",
+    "title": "Abbreviation from Words",
+    "prompt": "Write a program that reads a line of text (words separated by spaces) and prints the uppercase abbreviation formed by the first letter of each non-empty word. Ignore extra spaces.\n\nInput: One line of text\nOutput: Uppercase abbreviation\n\nExample:\nInput:\nPrince Sultan University\nOutput:\nPSU",
+    "starter": "import java.util.Scanner;\n\npublic class Main {\n  public static void main(String[] args) {\n    Scanner input = new Scanner(System.in);\n    String line = input.nextLine();\n    // TODO: split on spaces, take first char of each non-empty word, uppercase\n    \n  }\n}",
+    "tests": [
+      { "input": "Prince Sultan University", "output": "PSU" },
+      { "input": " computer science ", "output": "CS" },
+      { "input": "java programming", "output": "JP" }
+    ],
+    "timeoutMs": 3000,
+    "timeSec": 1500
+  },
+  {
+    "id": "code-psu-02",
+    "chapter": "loops",
+    "language": "java",
+    "title": "Count Evens Until First Odd",
+    "prompt": "Write a program that reads N (number of integers), then reads N integers. Print the count of consecutive even integers from the start, stopping when the first odd is encountered.\n\nInput: First line is N, then N integers (one per line)\nOutput: Count of leading even numbers\n\nExample:\nInput:\n6\n20\n100\n54\n2\n14\n3\nOutput:\n5",
+    "starter": "import java.util.Scanner;\n\npublic class Main {\n  public static void main(String[] args) {\n    Scanner input = new Scanner(System.in);\n    int n = input.nextInt();\n    // TODO: read n numbers, count evens until first odd\n    \n  }\n}",
+    "tests": [
+      { "input": "6\n20\n100\n54\n2\n14\n3", "output": "5" },
+      { "input": "3\n3\n4\n6", "output": "0" },
+      { "input": "5\n2\n4\n6\n8\n10", "output": "5" }
+    ],
+    "timeoutMs": 3000,
+    "timeSec": 1500
+  },
+  {
+    "id": "code-psu-03",
+    "chapter": "arrays",
+    "language": "java",
+    "title": "Min and Max in an Array",
+    "prompt": "Write a program that reads N integers and prints the minimum and maximum values on separate lines.\n\nInput: First line is N, then N integers (one per line)\nOutput: Two lines - first line is minimum, second line is maximum\n\nExample:\nInput:\n5\n191\n147\n102\n112\n175\nOutput:\n102\n191",
+    "starter": "import java.util.Scanner;\n\npublic class Main {\n  public static void main(String[] args) {\n    Scanner input = new Scanner(System.in);\n    int n = input.nextInt();\n    // TODO: read n numbers, find min and max\n    \n  }\n}",
+    "tests": [
+      { "input": "5\n191\n147\n102\n112\n175", "output": "102\n191" },
+      { "input": "1\n5", "output": "5\n5" },
+      { "input": "5\n0\n-10\n10\n-3\n7", "output": "-10\n10" }
+    ],
+    "timeoutMs": 3000,
+    "timeSec": 1500
+  },
+  {
+    "id": "code-psu-04",
+    "chapter": "loops",
+    "language": "java",
+    "title": "Divisible by 3, 5, and Both",
+    "prompt": "Write a program that reads N and prints three lines:\n- Line 1: All numbers from 1 to N divisible by 3 (space-separated)\n- Line 2: All numbers from 1 to N divisible by 5 (space-separated)\n- Line 3: All numbers from 1 to N divisible by both 3 and 5 (space-separated)\n\nIf a line has no numbers, print an empty line.\n\nExample:\nInput:\n16\nOutput:\n3 6 9 12 15\n5 10 15\n15",
+    "starter": "import java.util.Scanner;\n\npublic class Main {\n  public static void main(String[] args) {\n    Scanner input = new Scanner(System.in);\n    int n = input.nextInt();\n    // TODO: loop 1 to n, collect divisible by 3, 5, and both\n    // Print each list on separate lines with spaces between numbers\n    \n  }\n}",
+    "tests": [
+      { "input": "10", "output": "3 6 9\n5 10\n" },
+      { "input": "16", "output": "3 6 9 12 15\n5 10 15\n15" }
+    ],
+    "timeoutMs": 3000,
+    "timeSec": 1500
+  },
+  {
+    "id": "code-psu-05",
+    "chapter": "strings",
+    "language": "java",
+    "title": "PSU Email from Name and ID",
+    "prompt": "Write a program that generates a PSU email address in the format: <initials><last3>@psu.edu.sa\n\nWhere:\n- initials = lowercase first letter of first name + lowercase first letter of last name\n- last3 = last three digits of the student ID (pad with zeros if needed)\n\nInput: Three lines - first name, last name, student ID (integer)\nOutput: The generated email address\n\nExample:\nInput:\nSara\nAhmad\n219000123\nOutput:\nsa123@psu.edu.sa",
+    "starter": "import java.util.Scanner;\n\npublic class Main {\n  public static void main(String[] args) {\n    Scanner input = new Scanner(System.in);\n    String firstName = input.nextLine();\n    String lastName = input.nextLine();\n    int id = input.nextInt();\n    // TODO: get first chars lowercase, get last 3 digits with padding\n    \n  }\n}",
+    "tests": [
+      { "input": "Sara\nAhmad\n219000123", "output": "sa123@psu.edu.sa" },
+      { "input": "Reem\nZaki\n1007", "output": "rz007@psu.edu.sa" },
+      { "input": "Ali\nOmar\n555000", "output": "ao000@psu.edu.sa" }
+    ],
+    "timeoutMs": 3000,
+    "timeSec": 1500
+  },
+  {
+    "id": "code-psu-06",
+    "chapter": "conditions",
+    "language": "java",
+    "title": "Input Validation (Range Check)",
+    "prompt": "Write a program that reads an integer and prints 'true' if it's in the range [0,10] or [90,100], otherwise prints 'false'.\n\nInput: One integer\nOutput: true or false\n\nExample:\nInput:\n5\nOutput:\ntrue",
+    "starter": "import java.util.Scanner;\n\npublic class Main {\n  public static void main(String[] args) {\n    Scanner input = new Scanner(System.in);\n    int x = input.nextInt();\n    // TODO: check if x in [0,10] or [90,100]\n    \n  }\n}",
+    "tests": [
+      { "input": "-1", "output": "false" },
+      { "input": "5", "output": "true" },
+      { "input": "50", "output": "false" },
+      { "input": "90", "output": "true" },
+      { "input": "100", "output": "true" },
+      { "input": "11", "output": "false" }
+    ],
+    "timeoutMs": 3000,
+    "timeSec": 1500
+  },
+  {
+    "id": "code-psu-07",
+    "chapter": "strings",
+    "language": "java",
+    "title": "Website TLD Classifier",
+    "prompt": "Write a program that reads a website URL and prints its classification based on the top-level domain (TLD):\n- URLs ending with .edu or .edu.sa → 'education'\n- URLs ending with .com → 'commercial'\n- URLs ending with .org → 'organization'\n- URLs ending with .net → 'network'\n- Otherwise → 'unknown'\n\nInput: One line (website URL)\nOutput: One of: education, commercial, organization, network, unknown\n\nExample:\nInput:\nwww.psu.edu.sa\nOutput:\neducation",
+    "starter": "import java.util.Scanner;\n\npublic class Main {\n  public static void main(String[] args) {\n    Scanner input = new Scanner(System.in);\n    String url = input.nextLine();\n    // TODO: check URL ending to classify\n    \n  }\n}",
+    "tests": [
+      { "input": "www.psu.edu", "output": "education" },
+      { "input": "www.psu.edu.sa", "output": "education" },
+      { "input": "www.google.com", "output": "commercial" },
+      { "input": "info.org", "output": "organization" },
+      { "input": "portal.net", "output": "network" },
+      { "input": "www.mywebsite.xyz", "output": "unknown" }
+    ],
+    "timeoutMs": 3000,
+    "timeSec": 1500
+  },
+  {
+    "id": "code-psu-08",
+    "chapter": "math",
+    "language": "java",
+    "title": "Sum of Digits",
+    "prompt": "Write a program that reads a non-negative integer and prints the sum of its digits.\n\nInput: One integer (n ≥ 0)\nOutput: Sum of digits\n\nExample:\nInput:\n123\nOutput:\n6\n\n(Because 1 + 2 + 3 = 6)",
+    "starter": "import java.util.Scanner;\n\npublic class Main {\n  public static void main(String[] args) {\n    Scanner input = new Scanner(System.in);\n    int n = input.nextInt();\n    // TODO: extract digits using % 10 and / 10, sum them\n    \n  }\n}",
+    "tests": [
+      { "input": "123", "output": "6" },
+      { "input": "505", "output": "10" },
+      { "input": "0", "output": "0" },
+      { "input": "9999", "output": "36" }
+    ],
+    "timeoutMs": 3000,
+    "timeSec": 1500
+  },
+  {
+    "id": "code-psu-09",
+    "chapter": "conditions",
+    "language": "java",
+    "title": "Vowel or Consonant",
+    "prompt": "Write a program that reads a single character and prints:\n- 'vowel' if it's a vowel (a, e, i, o, u - case insensitive)\n- 'consonant' if it's a letter but not a vowel\n- 'invalid' if it's not a letter\n\nInput: One character\nOutput: vowel, consonant, or invalid\n\nExample:\nInput:\nA\nOutput:\nvowel",
+    "starter": "import java.util.Scanner;\n\npublic class Main {\n  public static void main(String[] args) {\n    Scanner input = new Scanner(System.in);\n    char c = input.next().charAt(0);\n    // TODO: check if letter, then check if vowel\n    \n  }\n}",
+    "tests": [
+      { "input": "A", "output": "vowel" },
+      { "input": "e", "output": "vowel" },
+      { "input": "x", "output": "consonant" },
+      { "input": "Z", "output": "consonant" },
+      { "input": "@", "output": "invalid" },
+      { "input": "5", "output": "invalid" }
+    ],
+    "timeoutMs": 3000,
+    "timeSec": 1500
+  },
+  {
+    "id": "code-psu-10",
+    "chapter": "arrays",
+    "language": "java",
+    "title": "Student with Minimum Score",
+    "prompt": "Write a program that reads N (number of students), then reads N student names (one per line), then reads N scores (one per line). Print the name of the student with the minimum score.\n\nInput:\n- First line: N (number of students)\n- Next N lines: student names\n- Next N lines: scores (integers)\n\nOutput: Name of student with minimum score\n\nExample:\nInput:\n5\nSarah\nNorah\nMaha\nAbrar\nRama\n60\n75\n87\n55\n90\nOutput:\nAbrar",
+    "starter": "import java.util.Scanner;\n\npublic class Main {\n  public static void main(String[] args) {\n    Scanner input = new Scanner(System.in);\n    int n = input.nextInt();\n    input.nextLine(); // consume newline\n    // TODO: read n names into array, read n scores into array\n    // Find index of minimum score, print that name\n    \n  }\n}",
+    "tests": [
+      { "input": "5\nSarah\nNorah\nMaha\nAbrar\nRama\n60\n75\n87\n55\n90", "output": "Abrar" },
+      { "input": "1\nAli\n100", "output": "Ali" },
+      { "input": "3\nS1\nS2\nS3\n10\n10\n9", "output": "S3" }
+    ],
+    "timeoutMs": 3000,
+    "timeSec": 1500
+  }
+]

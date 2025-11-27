@@ -1,0 +1,209 @@
+[
+  {
+    "id": "out-ch3-01",
+    "title": "Conditional Statement",
+    "code": [
+      "int x = 1;",
+      "if (x > 0);",
+      "  System.out.println(\"Yes\");"
+    ],
+    "expectedOutput": "Yes",
+    "timeSec": 120
+  },
+  {
+    "id": "out-ch3-02",
+    "title": "Nested If-Else",
+    "code": [
+      "int n = 3;",
+      "if (n > 2)",
+      "  if (n > 4)",
+      "    System.out.println(\"A\");",
+      "  else",
+      "    System.out.println(\"B\");"
+    ],
+    "expectedOutput": "B",
+    "timeSec": 180
+  },
+  {
+    "id": "out-ch3-03",
+    "title": "Logical Operators",
+    "code": [
+      "int y = 0;",
+      "if (y != 0 && 10 / y > 1) System.out.println(\"A\");",
+      "else System.out.println(\"B\");"
+    ],
+    "expectedOutput": "B",
+    "timeSec": 180
+  },
+  {
+    "id": "out-ch3-04",
+    "title": "Switch Statement",
+    "code": [
+      "int k = 2;",
+      "switch (k) {",
+      "  case 1: System.out.print(\"A\");",
+      "  case 2: System.out.print(\"B\");",
+      "  default: System.out.print(\"C\");",
+      "}",
+      "System.out.println();"
+    ],
+    "expectedOutput": "BC",
+    "timeSec": 180
+  },
+  {
+    "id": "out-ch4-01",
+    "title": "Math Functions",
+    "code": [
+      "System.out.println(Math.ceil(-2.1));",
+      "System.out.println(Math.floor(-2.1));"
+    ],
+    "expectedOutput": "-2.0\n-3.0",
+    "timeSec": 180
+  },
+  {
+    "id": "out-ch4-02",
+    "title": "Rounding Operations",
+    "code": [
+      "System.out.println(Math.round(-2.5));",
+      "System.out.println(Math.rint(2.5));"
+    ],
+    "expectedOutput": "-2\n2.0",
+    "timeSec": 270
+  },
+  {
+    "id": "out-ch4-03",
+    "title": "String Methods",
+    "code": [
+      "String s = \"JavaProgramming\";",
+      "System.out.println(s.substring(4, 11));",
+      "System.out.println(s.indexOf('a', 2));"
+    ],
+    "expectedOutput": "Program\n3",
+    "timeSec": 180
+  },
+  {
+    "id": "out-ch4-04",
+    "title": "Character Operations",
+    "code": [
+      "System.out.println('A' + 1);",
+      "System.out.println(\"\" + 'A' + 1);"
+    ],
+    "expectedOutput": "66\nA1",
+    "timeSec": 180
+  },
+  {
+    "id": "out-ch5-01",
+    "title": "For Loop",
+    "code": [
+      "for (int i = 0; i < 3; i++) System.out.println(i);"
+    ],
+    "expectedOutput": "0\n1\n2",
+    "timeSec": 120
+  },
+  {
+    "id": "out-ch5-02",
+    "title": "Loop Counter",
+    "code": [
+      "int count = 0;",
+      "for (int i = 0; i < 5; i++);",
+      "count++;",
+      "System.out.println(count);"
+    ],
+    "expectedOutput": "1",
+    "timeSec": 180
+  },
+  {
+    "id": "out-ch5-03",
+    "title": "Loop with Continue",
+    "code": [
+      "int sum = 0;",
+      "for (int i = 0; i < 5; i++) {",
+      "  if (i % 2 == 0) continue;",
+      "  sum += i;",
+      "}",
+      "System.out.println(sum);"
+    ],
+    "expectedOutput": "4",
+    "timeSec": 180
+  },
+  {
+    "id": "out-ch5-04",
+    "title": "While Loop",
+    "code": [
+      "int i = 0;",
+      "while (i++ < 3) {}",
+      "System.out.println(i);"
+    ],
+    "expectedOutput": "4",
+    "timeSec": 270
+  },
+  {
+    "id": "out-ch5-05",
+    "title": "Loop Increment",
+    "code": [
+      "for (int t = 0; t < 3; ++t) System.out.println(t++);"
+    ],
+    "expectedOutput": "0\n2",
+    "timeSec": 270
+  },
+  {
+    "id": "out-ch5-06",
+    "title": "Loop with Break",
+    "code": [
+      "int j = 0;",
+      "for (j = 0; j < 10; j++) {",
+      "  if (j == 3) break;",
+      "}",
+      "System.out.println(j);"
+    ],
+    "expectedOutput": "3",
+    "timeSec": 120
+  },
+  {
+    "id": "out-ch5-07",
+    "title": "Multiple Loop Variables",
+    "code": [
+      "int c = 0;",
+      "for (int a = 0, b = 5; a < b; a++, b--) c++;",
+      "System.out.println(c);"
+    ],
+    "expectedOutput": "3",
+    "timeSec": 180
+  },
+  {
+    "id": "out-ch5-08",
+    "title": "Array Initialization",
+    "code": [
+      "int[] arr = {5, 10, 15};",
+      "System.out.println(arr[1]);"
+    ],
+    "expectedOutput": "10",
+    "timeSec": 120
+  },
+  {
+    "id": "out-ch5-09",
+    "title": "String Comparison",
+    "code": [
+      "String s1 = \"hello\";",
+      "String s2 = \"hello\";",
+      "System.out.println(s1 == s2);",
+      "System.out.println(s1.equals(s2));"
+    ],
+    "expectedOutput": "true\ntrue",
+    "timeSec": 180
+  },
+  {
+    "id": "out-ch5-10",
+    "title": "Variable Scope",
+    "code": [
+      "int x = 5;",
+      "{",
+      "  int x = 10;",
+      "  System.out.println(x);",
+      "}",
+      "System.out.println(x);"
+    ],
+    "expectedOutput": "10\n5",
+    "timeSec": 180
+  }
+]

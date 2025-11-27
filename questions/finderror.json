@@ -1,0 +1,275 @@
+[
+  {
+    "id": "fe-exam-01",
+    "title": "Variable Assignment",
+    "code": [
+      "int num;",
+      "num = Math.random()*10",
+      "System.out.println(num);"
+    ],
+    "correctLine": 2,
+    "errorOptions": [
+      "Missing semicolon",
+      "Wrong data type",
+      "Wrong method call"
+    ],
+    "correctErrorIndex": 0,
+    "timeSec": 120
+  },
+  {
+    "id": "fe-exam-02",
+    "title": "Conditional Statement",
+    "code": [
+      "int var = 0;",
+      "if (var==3)",
+      "  System.out.println(var);"
+    ],
+    "correctLine": 2,
+    "errorOptions": [
+      "Should use assignment = instead of ==",
+      "Missing braces",
+      "Wrong variable name"
+    ],
+    "correctErrorIndex": 0,
+    "timeSec": 120
+  },
+  {
+    "id": "fe-exam-03",
+    "title": "For Loop",
+    "code": [
+      "for (int i=1; i>12; i++)",
+      "{",
+      "  System.out.println(i);",
+      "}"
+    ],
+    "correctLine": 1,
+    "errorOptions": [
+      "Condition i>12 should be i<=12 or i<13",
+      "Wrong initialization",
+      "Missing increment"
+    ],
+    "correctErrorIndex": 0,
+    "timeSec": 180
+  },
+  {
+    "id": "fe-exam-04",
+    "title": "While Loop",
+    "code": [
+      "boolean b = false;",
+      "int counter = 0;",
+      "while (!b)",
+      "{",
+      "  if (counter==5)",
+      "    b=false;",
+      "  counter++;",
+      "}"
+    ],
+    "correctLine": 6,
+    "errorOptions": [
+      "Should set b=true to exit loop",
+      "Wrong comparison operator",
+      "Missing counter initialization"
+    ],
+    "correctErrorIndex": 0,
+    "timeSec": 180
+  },
+  {
+    "id": "fe-exam-05",
+    "title": "If Statement",
+    "code": [
+      "int x = 10;",
+      "if (x == 10)",
+      "  System.out.println(\"Check complete\");",
+      "  System.out.println(\"x is not 10\");"
+    ],
+    "correctLine": 2,
+    "errorOptions": [
+      "Missing curly braces for if block",
+      "Wrong condition",
+      "Missing semicolon"
+    ],
+    "correctErrorIndex": 0,
+    "timeSec": 180
+  },
+  {
+    "id": "fe-exam-06",
+    "title": "Scanner Input",
+    "code": [
+      "Scanner in = new Scanner(System.in);",
+      "int number = 25;",
+      "int answer = in.next(Integer());",
+      "if (answer==number)",
+      "  System.out.println(\"OK\");"
+    ],
+    "correctLine": 3,
+    "errorOptions": [
+      "Should use nextInt() not next(Integer())",
+      "Wrong variable declaration",
+      "Missing import statement"
+    ],
+    "correctErrorIndex": 0,
+    "timeSec": 180
+  },
+  {
+    "id": "fe-exam-07",
+    "title": "String Output",
+    "code": [
+      "int x = 10;",
+      "if (x ==10) {",
+      "  System.out.println(\"x is equal to 10\");",
+      "} else",
+      "  System.out.println(\"x is not equal to 10\");"
+    ],
+    "correctLine": 2,
+    "errorOptions": [
+      "Extra space in == operator",
+      "Missing closing brace",
+      "Wrong string syntax"
+    ],
+    "correctErrorIndex": 0,
+    "timeSec": 120
+  },
+  {
+    "id": "fe-exam-08",
+    "title": "String Method",
+    "code": [
+      "String greeting = \"Hello, Java!\";",
+      "System.out.println(greeting.substring(7,11));"
+    ],
+    "correctLine": 2,
+    "errorOptions": [
+      "Correct - no error",
+      "Wrong method name",
+      "Wrong parameters"
+    ],
+    "correctErrorIndex": 0,
+    "timeSec": 120
+  },
+  {
+    "id": "fe-exam-09",
+    "title": "Loop Increment",
+    "code": [
+      "int i=10",
+      "while (i%0)",
+      "{",
+      "  System.out.println(i);",
+      "  i=-1;",
+      "}"
+    ],
+    "correctLine": 2,
+    "errorOptions": [
+      "Cannot use modulo with 0",
+      "Wrong loop condition syntax",
+      "Missing semicolon on line 1"
+    ],
+    "correctErrorIndex": 0,
+    "timeSec": 180
+  },
+  {
+    "id": "fe-exam-10",
+    "title": "Math Operation",
+    "code": [
+      "double x = Math.pow(2, 3);",
+      "double y = Math.sqrt(-4);",
+      "System.out.println(\"Result: \" + (x + y));"
+    ],
+    "correctLine": 2,
+    "errorOptions": [
+      "Cannot take square root of negative number",
+      "Wrong data type",
+      "Wrong method parameters"
+    ],
+    "correctErrorIndex": 0,
+    "timeSec": 180
+  },
+  {
+    "id": "fe-exam-11",
+    "title": "Factorial Loop",
+    "code": [
+      "int n = 5;",
+      "int factorial = 1;",
+      "for (int i = 0; i <= n; i++) {",
+      "  factorial *= i;",
+      "}",
+      "System.out.println(\"Factorial: \" + factorial);"
+    ],
+    "correctLine": 3,
+    "errorOptions": [
+      "Should start from i=1 not i=0",
+      "Wrong comparison operator",
+      "Missing increment"
+    ],
+    "correctErrorIndex": 0,
+    "timeSec": 180
+  },
+  {
+    "id": "fe-exam-12",
+    "title": "String Comparison",
+    "code": [
+      "String s1 = \"hello\";",
+      "String s2 = \"hello\";",
+      "if (s1 = s2)",
+      "  System.out.println(\"Equal\");"
+    ],
+    "correctLine": 3,
+    "errorOptions": [
+      "Should use == not = for comparison",
+      "Should use equals() method",
+      "Missing braces"
+    ],
+    "correctErrorIndex": 0,
+    "timeSec": 120
+  },
+  {
+    "id": "fe-exam-13",
+    "title": "Array Access",
+    "code": [
+      "int[] arr = {5, 10, 15};",
+      "for (int i = 0; i <= arr.length; i++)",
+      "  System.out.println(arr[i]);"
+    ],
+    "correctLine": 2,
+    "errorOptions": [
+      "Should use i < arr.length not i <= arr.length",
+      "Wrong array syntax",
+      "Missing braces"
+    ],
+    "correctErrorIndex": 0,
+    "timeSec": 180
+  },
+  {
+    "id": "fe-exam-14",
+    "title": "Variable Initialization",
+    "code": [
+      "int sum;",
+      "for (int i = 1; i <= 5; i++)",
+      "  sum += i;",
+      "System.out.println(sum);"
+    ],
+    "correctLine": 1,
+    "errorOptions": [
+      "Variable sum not initialized before use",
+      "Wrong loop condition",
+      "Missing braces"
+    ],
+    "correctErrorIndex": 0,
+    "timeSec": 180
+  },
+  {
+    "id": "fe-exam-15",
+    "title": "Division Operation",
+    "code": [
+      "int a = 10;",
+      "int b = 0;",
+      "System.out.println(a / b);"
+    ],
+    "correctLine": 3,
+    "errorOptions": [
+      "Division by zero error",
+      "Wrong data type",
+      "Missing parentheses"
+    ],
+    "correctErrorIndex": 0,
+    "timeSec": 120
+  }
+]

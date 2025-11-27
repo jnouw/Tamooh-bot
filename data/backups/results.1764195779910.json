@@ -1,0 +1,534 @@
+{
+  "results": [
+    {
+      "guildId": "1293617158747590656",
+      "userId": "274462470674972682",
+      "mode": "mcq",
+      "score": 2,
+      "total": 8,
+      "percent": 25,
+      "chapter": null,
+      "createdAt": 1760466771939
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1345508252703654018",
+      "mode": "output",
+      "score": 1,
+      "total": 5,
+      "percent": 20,
+      "chapter": null,
+      "createdAt": 1760467269554
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1345508252703654018",
+      "mode": "mcq",
+      "score": 5,
+      "total": 8,
+      "percent": 63,
+      "chapter": null,
+      "createdAt": 1760467405982
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "274462470674972682",
+      "mode": "finderror",
+      "score": 2,
+      "total": 3,
+      "percent": 67,
+      "chapter": null,
+      "createdAt": 1760467584993
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "729470145965064264",
+      "mode": "finderror",
+      "score": 0,
+      "total": 3,
+      "percent": 0,
+      "chapter": null,
+      "createdAt": 1760468400675
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "729470145965064264",
+      "mode": "mcq",
+      "score": 2,
+      "total": 8,
+      "percent": 25,
+      "chapter": null,
+      "createdAt": 1760468606771
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "729470145965064264",
+      "mode": "output",
+      "score": 0,
+      "total": 5,
+      "percent": 0,
+      "chapter": null,
+      "createdAt": 1760469189272
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1345508252703654018",
+      "mode": "code",
+      "score": 0,
+      "total": 1,
+      "percent": 0,
+      "chapter": null,
+      "createdAt": 1760469222768
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "935365249622757407",
+      "mode": "mcq",
+      "score": 1,
+      "total": 8,
+      "percent": 13,
+      "chapter": null,
+      "createdAt": 1760546521110
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1171559186396627054",
+      "mode": "finderror",
+      "score": 1,
+      "total": 3,
+      "percent": 33,
+      "chapter": null,
+      "createdAt": 1760548622715
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1171559186396627054",
+      "mode": "output",
+      "score": 0,
+      "total": 5,
+      "percent": 0,
+      "chapter": null,
+      "createdAt": 1760549242273
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1427751739045445776",
+      "mode": "mcq",
+      "score": 1,
+      "total": 8,
+      "percent": 13,
+      "chapter": "4",
+      "createdAt": 1760561766639
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1418628454529892574",
+      "mode": "mcq",
+      "score": 0,
+      "total": 8,
+      "percent": 0,
+      "chapter": null,
+      "createdAt": 1760563563383
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "274462470674972682",
+      "mode": "mcq",
+      "score": 3,
+      "total": 8,
+      "percent": 38,
+      "chapter": null,
+      "createdAt": 1760584918928
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "672408007413465108",
+      "mode": "mcq",
+      "score": 2,
+      "total": 8,
+      "percent": 25,
+      "chapter": null,
+      "createdAt": 1760590519075
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "274462470674972682",
+      "mode": "mcq",
+      "score": 1,
+      "total": 8,
+      "percent": 13,
+      "chapter": null,
+      "createdAt": 1760590548324
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1422969432401117374",
+      "mode": "finderror",
+      "score": 0,
+      "total": 3,
+      "percent": 0,
+      "chapter": null,
+      "createdAt": 1760590562842
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "mcq",
+      "score": 1,
+      "total": 8,
+      "percent": 13,
+      "chapter": "4",
+      "createdAt": 1760646877441
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "mcq",
+      "score": 4,
+      "total": 8,
+      "percent": 50,
+      "chapter": "4",
+      "createdAt": 1760647071820
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "mcq",
+      "score": 5,
+      "total": 8,
+      "percent": 63,
+      "chapter": "4",
+      "createdAt": 1760649048085
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "697082367512412253",
+      "mode": "mcq",
+      "score": 1,
+      "total": 8,
+      "percent": 13,
+      "chapter": "1",
+      "createdAt": 1760709106146
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "mcq",
+      "score": 4,
+      "total": 8,
+      "percent": 50,
+      "chapter": "5",
+      "createdAt": 1760711528881
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1422242563603042315",
+      "mode": "output",
+      "score": 1,
+      "total": 5,
+      "percent": 20,
+      "chapter": null,
+      "createdAt": 1760711955418
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1171559186396627054",
+      "mode": "code",
+      "score": 0,
+      "total": 1,
+      "percent": 0,
+      "chapter": null,
+      "createdAt": 1760722185952
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "mcq",
+      "score": 3,
+      "total": 8,
+      "percent": 38,
+      "chapter": "5",
+      "createdAt": 1760722661626
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "mcq",
+      "score": 3,
+      "total": 8,
+      "percent": 38,
+      "chapter": "5",
+      "createdAt": 1760722926146
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "mcq",
+      "score": 6,
+      "total": 8,
+      "percent": 75,
+      "chapter": "5",
+      "createdAt": 1760723058124
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "mcq",
+      "score": 5,
+      "total": 8,
+      "percent": 63,
+      "chapter": "5",
+      "createdAt": 1760723202622
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "mcq",
+      "score": 5,
+      "total": 8,
+      "percent": 63,
+      "chapter": "5",
+      "createdAt": 1760723512203
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "finderror",
+      "score": 0,
+      "total": 3,
+      "percent": 0,
+      "chapter": "5",
+      "createdAt": 1760723610211
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "finderror",
+      "score": 3,
+      "total": 3,
+      "percent": 100,
+      "chapter": "5",
+      "createdAt": 1760723735386
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "finderror",
+      "score": 2,
+      "total": 3,
+      "percent": 67,
+      "chapter": "4",
+      "createdAt": 1760723837290
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "finderror",
+      "score": 2,
+      "total": 3,
+      "percent": 67,
+      "chapter": "3",
+      "createdAt": 1760723903092
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "finderror",
+      "score": 3,
+      "total": 3,
+      "percent": 100,
+      "chapter": "2",
+      "createdAt": 1760723983384
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "finderror",
+      "score": 3,
+      "total": 3,
+      "percent": 100,
+      "chapter": "1",
+      "createdAt": 1760724037359
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "output",
+      "score": 2,
+      "total": 5,
+      "percent": 40,
+      "chapter": "5",
+      "createdAt": 1760724208993
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1171559186396627054",
+      "mode": "output",
+      "score": 0,
+      "total": 5,
+      "percent": 0,
+      "chapter": null,
+      "createdAt": 1760724227704
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "output",
+      "score": 3,
+      "total": 5,
+      "percent": 60,
+      "chapter": "4",
+      "createdAt": 1760724365197
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "output",
+      "score": 4,
+      "total": 5,
+      "percent": 80,
+      "chapter": "3",
+      "createdAt": 1760724440107
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "731796082367135814",
+      "mode": "mcq",
+      "score": 6,
+      "total": 8,
+      "percent": 75,
+      "chapter": "1",
+      "createdAt": 1760724576685
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "468097045836726273",
+      "mode": "mcq",
+      "score": 0,
+      "total": 8,
+      "percent": 0,
+      "chapter": null,
+      "createdAt": 1760735013992
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1427731398973849774",
+      "mode": "mcq",
+      "score": 2,
+      "total": 8,
+      "percent": 25,
+      "chapter": null,
+      "createdAt": 1760768184914
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "396363025868914700",
+      "mode": "mcq",
+      "score": 3,
+      "total": 8,
+      "percent": 38,
+      "chapter": "CS101",
+      "createdAt": 1761054003547
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "274462470674972682",
+      "mode": "mcq",
+      "score": 6,
+      "total": 8,
+      "percent": 75,
+      "chapter": null,
+      "createdAt": 1761076995494
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "395305402692141067",
+      "mode": "finderror",
+      "score": 3,
+      "total": 3,
+      "percent": 100,
+      "chapter": null,
+      "createdAt": 1761789410965
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "274462470674972682",
+      "mode": "finderror",
+      "score": 0,
+      "total": 3,
+      "percent": 0,
+      "chapter": null,
+      "createdAt": 1761789443821
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1171559186396627054",
+      "mode": "finderror",
+      "score": 0,
+      "total": 3,
+      "percent": 0,
+      "chapter": null,
+      "createdAt": 1762864467182
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1171559186396627054",
+      "mode": "output",
+      "score": 2,
+      "total": 5,
+      "percent": 40,
+      "chapter": null,
+      "createdAt": 1762864821171
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1171559186396627054",
+      "mode": "finderror",
+      "score": 1,
+      "total": 3,
+      "percent": 33,
+      "chapter": null,
+      "createdAt": 1762865064489
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1171559186396627054",
+      "mode": "finderror",
+      "score": 1,
+      "total": 3,
+      "percent": 33,
+      "chapter": null,
+      "createdAt": 1762865141489
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1171559186396627054",
+      "mode": "finderror",
+      "score": 1,
+      "total": 3,
+      "percent": 33,
+      "chapter": null,
+      "createdAt": 1762865294296
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1171559186396627054",
+      "mode": "code",
+      "score": 0,
+      "total": 1,
+      "percent": 0,
+      "chapter": null,
+      "createdAt": 1762866899596
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "274462470674972682",
+      "mode": "mcq",
+      "score": 0,
+      "total": 8,
+      "percent": 0,
+      "chapter": null,
+      "createdAt": 1763872893037
+    }
+  ]
+}

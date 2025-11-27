@@ -1,0 +1,996 @@
+[
+  {
+    "id": "ch1-mcq-03",
+    "prompt": "Which main method signature lets the JVM start your program?",
+    "image": null,
+    "choices": [
+      "public static void main(String[] args)",
+      "public void main(String[] args)",
+      "public static void Main(String[] args)",
+      "static void main(String[] args)"
+    ],
+    "answerIndex": 0,
+    "explanation": "It must be exactly public static void main(String[] args). Case matters and it must be static, public, and return void.",
+    "timeSec": 30
+  },
+  {
+    "id": "ch1-mcq-04",
+    "prompt": "Which of the following is a Java reserved word?",
+    "image": null,
+    "choices": [
+      "class",
+      "String",
+      "println",
+      "main"
+    ],
+    "answerIndex": 0,
+    "explanation": "class is a keyword. String is a class name, not a keyword. println and main are identifiers used by convention.",
+    "timeSec": 30
+  },
+  {
+    "id": "ch1-mcq-05",
+    "prompt": "Which of the following is a valid Java identifier?",
+    "image": null,
+    "choices": [
+      "_count",
+      "2count",
+      "total-value",
+      "class"
+    ],
+    "answerIndex": 0,
+    "explanation": "Identifiers may start with a letter, underscore, or dollar sign, and cannot contain hyphens or be reserved words. _count is valid.",
+    "timeSec": 30
+  },
+  {
+    "id": "ch1-mcq-06",
+    "prompt": "What gets printed by the following?\nSystem.out.print(\"A\");\nSystem.out.println(\"B\");",
+    "image": null,
+    "choices": [
+      "AB with a newline after A",
+      "AB with a newline after B",
+      "A newline then B",
+      "A and B on separate lines"
+    ],
+    "answerIndex": 1,
+    "explanation": "print does not append a newline, println does. Output is AB and then a newline after B.",
+    "timeSec": 30
+  },
+  {
+    "id": "ch1-mcq-07",
+    "prompt": "A class defines:\npublic static void Main(String[] args) {\n System.out.println(\"Hi\");\n}\nWhat happens when you try to run it?",
+    "image": null,
+    "choices": [
+      "Prints Hi",
+      "Compile-time error",
+      "Runtime error: main method not found",
+      "Prints nothing and exits"
+    ],
+    "answerIndex": 2,
+    "explanation": "The JVM looks for main (lowercase m). The program may compile, but at run time the JVM reports that no suitable main method was found.",
+    "timeSec": 30
+  },
+  {
+    "id": "ch1-mcq-08",
+    "prompt": "Which statement best describes Java bytecode and the JVM?",
+    "image": null,
+    "choices": [
+      "javac compiles source to platform-specific machine code.",
+      "javac compiles source to bytecode executed by the JVM.",
+      "java command compiles source to bytecode.",
+      "JVM compiles .java directly to machine code."
+    ],
+    "answerIndex": 1,
+    "explanation": "The Java compiler (javac) produces platform-independent bytecode (.class), which the JVM interprets/executes.",
+    "timeSec": 30
+  },
+  {
+    "id": "ch1-mcq-10",
+    "prompt": "Which character denotes the end of a Java statement?",
+    "image": null,
+    "choices": [
+      ";",
+      ":",
+      ".",
+      ","
+    ],
+    "answerIndex": 0,
+    "explanation": "Most Java statements end with a semicolon ;.",
+    "timeSec": 30
+  },
+  {
+    "id": "ch2-mcq-01",
+    "prompt": "What is printed?\nSystem.out.println((double)(7 / 2));",
+    "image": null,
+    "choices": [
+      "3.0",
+      "3.5",
+      "3",
+      "4.0"
+    ],
+    "answerIndex": 0,
+    "explanation": "7/2 is integer division (3). Casting after the division yields 3.0.",
+    "timeSec": 45
+  },
+  {
+    "id": "ch2-mcq-02",
+    "prompt": "What is printed?\nSystem.out.println(((double)7) / 2);",
+    "image": null,
+    "choices": [
+      "3.0",
+      "3.5",
+      "3",
+      "4.0"
+    ],
+    "answerIndex": 1,
+    "explanation": "Casting before the division promotes to double division: 7.0/2 = 3.5.",
+    "timeSec": 45
+  },
+  {
+    "id": "ch2-mcq-03",
+    "prompt": "What is printed?\nSystem.out.println(1 + 2 + \"3\" + 4 + 5);",
+    "image": null,
+    "choices": [
+      "12345",
+      "3345",
+      "75",
+      "345"
+    ],
+    "answerIndex": 1,
+    "explanation": "Left to right: 1+2=3 (int), then \"3\" → string concatenation: \"3\" + 4 → \"34\", then + 5 → \"345\"; prefixed 3 yields \"3345\".",
+    "timeSec": 45
+  },
+  {
+    "id": "ch2-mcq-04",
+    "prompt": "What is printed?\nSystem.out.println('A' + 1);",
+    "image": null,
+    "choices": [
+      "B",
+      "66",
+      "A1",
+      "Compile-time error"
+    ],
+    "answerIndex": 1,
+    "explanation": "Characters promote to int in arithmetic. 'A' is 65, so 65 + 1 = 66.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch2-mcq-05",
+    "prompt": "What is printed?\nSystem.out.println(-7 % 3);",
+    "image": null,
+    "choices": [
+      "1",
+      "-1",
+      "2",
+      "-2"
+    ],
+    "answerIndex": 1,
+    "explanation": "Remainder has the sign of the dividend in Java. -7 % 3 = -1.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch2-mcq-06",
+    "prompt": "Evaluate with operator precedence:\nSystem.out.println(3 + 4 * 2 - 1);",
+    "image": null,
+    "choices": [
+      "9",
+      "10",
+      "11",
+      "12"
+    ],
+    "answerIndex": 1,
+    "explanation": "Multiplication first: 4*2=8, then 3+8-1=10.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch2-mcq-07",
+    "prompt": "What is printed?\nint sum = 0;\nsum += 4.5;\nSystem.out.println(sum);",
+    "image": null,
+    "choices": [
+      "4.5",
+      "4",
+      "5",
+      "Compile-time error"
+    ],
+    "answerIndex": 1,
+    "explanation": "For +=, Java performs an implicit cast. 0 + 4.5 is cast to int → 4, then assigned.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch2-mcq-08",
+    "prompt": "What is printed?\nint x = 2147483647; // Integer.MAX_VALUE\nx++;\nSystem.out.println(x);",
+    "image": null,
+    "choices": [
+      "2147483648",
+      "-2147483648",
+      "Overflow error",
+      "Compile-time error"
+    ],
+    "answerIndex": 1,
+    "explanation": "32-bit signed int overflows to -2147483648; Java does not throw on overflow.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch2-mcq-09",
+    "prompt": "Input is two lines: 5\\nhello\\n. What is printed?\nScanner in = new Scanner(System.in);\nint n = in.nextInt();\nString s = in.nextLine();\nSystem.out.println(s.length());",
+    "image": null,
+    "choices": [
+      "0",
+      "1",
+      "5",
+      "5 then 0"
+    ],
+    "answerIndex": 0,
+    "explanation": "After nextInt, the pending newline is consumed by nextLine, yielding an empty string of length 0.",
+    "timeSec": 45
+  },
+  {
+    "id": "ch2-mcq-10",
+    "prompt": "What is printed?\nSystem.out.println(Math.pow(2, 3));",
+    "image": null,
+    "choices": [
+      "8",
+      "8.0",
+      "23",
+      "Compile-time error"
+    ],
+    "answerIndex": 1,
+    "explanation": "Math.pow returns a double; 2^3 is 8.0.",
+    "timeSec": 30
+  },
+  {
+    "id": "ch2-mcq-11",
+    "prompt": "What is printed?\nSystem.out.printf(\"%.2f\", 2/3.0);",
+    "image": null,
+    "choices": [
+      "0.66",
+      "0.67",
+      "0.6",
+      "0.67 with newline"
+    ],
+    "answerIndex": 1,
+    "explanation": "2/3.0 = 0.666..., formatted to two decimals → 0.67. printf does not append a newline unless specified.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch2-mcq-12",
+    "prompt": "What is printed?\nint i = 5;\nint j = i++ + ++i;\nSystem.out.println(i + \"\" + j);",
+    "image": null,
+    "choices": [
+      "7 12",
+      "6 11",
+      "6 12",
+      "7 11"
+    ],
+    "answerIndex": 0,
+    "explanation": "i++ yields 5 then i becomes 6; ++i makes i 7 and yields 7; j = 5 + 7 = 12; final i = 7.",
+    "timeSec": 50
+  },
+  {
+    "id": "ch3-mcq-01",
+    "prompt": "What is printed?\nint x = 1;\nif (x > 0);\n System.out.println(\"Yes\");",
+    "image": null,
+    "choices": [
+      "Prints nothing",
+      "Prints Yes only if x > 0",
+      "Always prints Yes",
+      "Compile-time error"
+    ],
+    "answerIndex": 2,
+    "explanation": "The stray semicolon ends the if. The println runs unconditionally.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch3-mcq-02",
+    "prompt": "Given n = 3, what is printed?\nif (n > 2)\n if (n > 4)\n System.out.print(\"A\");\n else\n System.out.print(\"B\");",
+    "image": null,
+    "choices": [
+      "A",
+      "B",
+      "No output",
+      "Compile-time error"
+    ],
+    "answerIndex": 1,
+    "explanation": "The else pairs with the closest unmatched if. Since n>2 but not >4, the else prints B.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch3-mcq-03",
+    "prompt": "What happens?\nint x = 0;\nif (x != 0 && 10/x > 1) System.out.print(\"A\"); else System.out.print(\"B\");",
+    "image": null,
+    "choices": [
+      "A",
+      "B",
+      "Runtime exception",
+      "Compile-time error"
+    ],
+    "answerIndex": 1,
+    "explanation": "Short-circuit AND: since x != 0 is false, 10/x is never evaluated; condition is false → prints B.",
+    "timeSec": 45
+  },
+  {
+    "id": "ch3-mcq-04",
+    "prompt": "What is printed?\nint n = 2;\nswitch (n) {\n case 1: System.out.print(\"A\");\n case 2: System.out.print(\"B\");\n default: System.out.print(\"C\");\n}",
+    "image": null,
+    "choices": [
+      "B",
+      "BC",
+      "ABC",
+      "C"
+    ],
+    "answerIndex": 1,
+    "explanation": "No breaks → case 2 executes then falls through to default, printing BC.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch3-mcq-05",
+    "prompt": "Which type CANNOT be used directly in a switch expression?",
+    "image": null,
+    "choices": [
+      "int",
+      "char",
+      "String",
+      "double"
+    ],
+    "answerIndex": 3,
+    "explanation": "switch supports primitives like byte/short/char/int (and their wrappers), enums, and String—not floating types like double.",
+    "timeSec": 35
+  },
+  {
+    "id": "ch3-mcq-06",
+    "prompt": "Evaluate the boolean expression:\n (9 <= 15) || (42 % 2 == 1) && (34/2 == 12)",
+    "image": null,
+    "choices": [
+      "true",
+      "false",
+      "Compile-time error",
+      "Depends on short-circuit"
+    ],
+    "answerIndex": 0,
+    "explanation": "AND has higher precedence than OR, so false && false → false; then true || false → true.",
+    "timeSec": 45
+  },
+  {
+    "id": "ch3-mcq-08",
+    "prompt": "Which correctly tests equality of two strings s1 and s2, ignoring case?",
+    "image": null,
+    "choices": [
+      "s1 == s2",
+      "s1.equals(s2)",
+      "s1.equalsIgnoreCase(s2)",
+      "compareToIgnoreCase(s1, s2) == 0"
+    ],
+    "answerIndex": 2,
+    "explanation": "Use equalsIgnoreCase to compare String contents without case sensitivity. == compares references.",
+    "timeSec": 35
+  },
+  {
+    "id": "ch3-mcq-09",
+    "prompt": "What is printed?\nint a = 5, b = 10;\nSystem.out.println(a > b ? a : b > 7 ? 7 : b);",
+    "image": null,
+    "choices": [
+      "5",
+      "7",
+      "10",
+      "Compile-time error"
+    ],
+    "answerIndex": 1,
+    "explanation": "Ternary is right-associative. a>b is false, so evaluate (b>7 ? 7 : b) → 7.",
+    "timeSec": 50
+  },
+  {
+    "id": "ch4-mcq-01",
+    "prompt": "What is printed?\nSystem.out.println(Math.ceil(-2.1));",
+    "image": null,
+    "choices": [
+      "-3.0",
+      "-2.0",
+      "2.0",
+      "3.0"
+    ],
+    "answerIndex": 1,
+    "explanation": "ceil returns the least integer greater than or equal to the argument. For negatives, ceil(-2.1) is -2.0.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch4-mcq-02",
+    "prompt": "What is printed?\nSystem.out.println(Math.floor(-2.1));",
+    "image": null,
+    "choices": [
+      "-3.0",
+      "-2.0",
+      "2.0",
+      "3.0"
+    ],
+    "answerIndex": 0,
+    "explanation": "floor returns the greatest integer less than or equal to the argument. floor(-2.1) is -3.0.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch4-mcq-03",
+    "prompt": "What is printed?\nSystem.out.println(Math.round(-2.5));",
+    "image": null,
+    "choices": [
+      "-3",
+      "-2",
+      "2",
+      "3"
+    ],
+    "answerIndex": 1,
+    "explanation": "Math.round(x) ≈ floor(x + 0.5). For -2.5, floor(-2.0) = -2.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch4-mcq-04",
+    "prompt": "What is printed?\nSystem.out.println(Math.rint(2.5));",
+    "image": null,
+    "choices": [
+      "2.0",
+      "3.0",
+      "2.5",
+      "Runtime error"
+    ],
+    "answerIndex": 0,
+    "explanation": "Math.rint uses IEEE 754 rounding (ties to even). 2.5 rounds to 2.0.",
+    "timeSec": 45
+  },
+  {
+    "id": "ch4-mcq-05",
+    "prompt": "What is printed?\nSystem.out.println((char)('A' + 2));",
+    "image": null,
+    "choices": [
+      "A",
+      "B",
+      "C",
+      "D"
+    ],
+    "answerIndex": 2,
+    "explanation": "Characters are integral; 'A' (65) + 2 = 67 → 'C'.",
+    "timeSec": 35
+  },
+  {
+    "id": "ch4-mcq-06",
+    "prompt": "What is printed?\nSystem.out.println((int)'9');",
+    "image": null,
+    "choices": [
+      "9",
+      "57",
+      "48",
+      "Compile-time error"
+    ],
+    "answerIndex": 1,
+    "explanation": "'9' has Unicode/ASCII code point 57.",
+    "timeSec": 35
+  },
+  {
+    "id": "ch4-mcq-07",
+    "prompt": "What is printed?\nString s = \"Java\";\nSystem.out.println(s.substring(1, 3));",
+    "image": null,
+    "choices": [
+      "Ja",
+      "av",
+      "ava",
+      "IndexOutOfBoundsException"
+    ],
+    "answerIndex": 1,
+    "explanation": "substring(begin, end) includes begin, excludes end → indices 1 and 2 → \"av\".",
+    "timeSec": 40
+  },
+  {
+    "id": "ch4-mcq-08",
+    "prompt": "What is printed?\nSystem.out.println(\"abc\".indexOf('d'));",
+    "image": null,
+    "choices": [
+      "0",
+      "1",
+      "-1",
+      "3"
+    ],
+    "answerIndex": 2,
+    "explanation": "indexOf returns -1 when the character is not found.",
+    "timeSec": 30
+  },
+  {
+    "id": "ch4-mcq-09",
+    "prompt": "What is printed?\nSystem.out.println(\"banana\".compareTo(\"band\"));",
+    "image": null,
+    "choices": [
+      "A negative number",
+      "0",
+      "A positive number",
+      "Runtime error"
+    ],
+    "answerIndex": 0,
+    "explanation": "First difference at index 3: 'a' (97) vs 'd' (100). 97 − 100 < 0 → negative.",
+    "timeSec": 45
+  },
+  {
+    "id": "ch4-mcq-10",
+    "prompt": "What is printed?\nSystem.out.println(\" hi\\n\".trim().length());",
+    "image": null,
+    "choices": [
+      "2",
+      "3",
+      "4",
+      "5"
+    ],
+    "answerIndex": 0,
+    "explanation": "trim removes leading and trailing whitespace (spaces, tabs, newlines). The string becomes \"hi\", whose length is 2.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch4-mcq-11",
+    "prompt": "What is printed?\nSystem.out.println(\"A\\tB\");",
+    "image": null,
+    "choices": [
+      "A<TAB>B",
+      "A\\tB",
+      "AB",
+      "A B (with single space)"
+    ],
+    "answerIndex": 0,
+    "explanation": "\\t is a tab character; it prints a horizontal tab between A and B.",
+    "timeSec": 30
+  },
+  {
+    "id": "ch4-mcq-12",
+    "prompt": "What is printed?\nSystem.out.println(\"\\\\n\");",
+    "image": null,
+    "choices": [
+      "A newline",
+      "\\n",
+      "\\\\n",
+      "n"
+    ],
+    "answerIndex": 1,
+    "explanation": "\"\\\\n\" is a two-character string: backslash and 'n'. println then adds its own newline after it.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch4-mcq-13",
+    "prompt": "Which comparison correctly ignores case when comparing two strings s1 and s2?",
+    "image": null,
+    "choices": [
+      "s1 == s2",
+      "s1.equals(s2)",
+      "s1.equalsIgnoreCase(s2)",
+      "s1.compareTo(s2) == 0"
+    ],
+    "answerIndex": 2,
+    "explanation": "Use equalsIgnoreCase to compare contents without case sensitivity. '==' compares references.",
+    "timeSec": 35
+  },
+  {
+    "id": "ch4-mcq-14",
+    "prompt": "What happens?\nSystem.out.printf(\"%d\", 3.14);",
+    "image": null,
+    "choices": [
+      "Prints 3",
+      "Prints 3.14",
+      "Throws an IllegalFormatConversionException at runtime",
+      "Compile-time error"
+    ],
+    "answerIndex": 2,
+    "explanation": "%d expects an integral type; passing a double causes IllegalFormatConversionException.",
+    "timeSec": 45
+  },
+  {
+    "id": "ch4-mcq-15",
+    "prompt": "What is printed?\nSystem.out.println(Character.isDigit('9') && Character.isLetter('A'));",
+    "image": null,
+    "choices": [
+      "true",
+      "false",
+      "9A",
+      "Compile-time error"
+    ],
+    "answerIndex": 0,
+    "explanation": "Character.isDigit('9') is true and Character.isLetter('A') is also true; true && true → true.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch4-mcq-16",
+    "prompt": "Possible values of x?\nint x = (int)(Math.random() * 1);",
+    "image": null,
+    "choices": [
+      "Always 0",
+      "0 or 1",
+      "1 only",
+      "Any int"
+    ],
+    "answerIndex": 0,
+    "explanation": "Math.random()*1 ∈ [0.0, 1.0). Casting to int truncates toward 0 → always 0.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch4-mcq-17",
+    "prompt": "What is printed?\nSystem.out.println(Math.round(2.5));",
+    "image": null,
+    "choices": [
+      "2",
+      "3",
+      "2.0",
+      "3.0"
+    ],
+    "answerIndex": 1,
+    "explanation": "Math.round(2.5) → 3 (long). println prints 3.",
+    "timeSec": 35
+  },
+  {
+    "id": "ch4-mcq-18",
+    "prompt": "What is printed?\nSystem.out.println(Math.rint(-1.5));",
+    "image": null,
+    "choices": [
+      "-2.0",
+      "-1.0",
+      "2.0",
+      "Runtime error"
+    ],
+    "answerIndex": 0,
+    "explanation": "Math.rint ties-to-even per IEEE 754. -1.5 is equidistant between -1 and -2, rounds to even → -2.0.",
+    "timeSec": 50
+  },
+  {
+    "id": "ch4-mcq-19",
+    "prompt": "What is printed?\nString s = \"hello\";\nSystem.out.println(s.substring(2));",
+    "image": null,
+    "choices": [
+      "he",
+      "lo",
+      "llo",
+      "IndexOutOfBoundsException"
+    ],
+    "answerIndex": 2,
+    "explanation": "substring(begin) returns from index 2 inclusive → \"llo\".",
+    "timeSec": 35
+  },
+  {
+    "id": "ch4-mcq-20",
+    "prompt": "What is printed?\nString s = \"Java\";\ns.toUpperCase();\nSystem.out.println(s);",
+    "image": null,
+    "choices": [
+      "JAVA",
+      "Java",
+      "compile error",
+      "null"
+    ],
+    "answerIndex": 1,
+    "explanation": "Strings are immutable. toUpperCase() returns a new String; s is unchanged.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch4-mcq-21",
+    "prompt": "What is printed?\nSystem.out.println('a' + 'b' + \"c\");",
+    "image": null,
+    "choices": [
+      "abc",
+      "abcc",
+      "195c",
+      "a + b + c"
+    ],
+    "answerIndex": 2,
+    "explanation": "Char + char promotes to int: 97+98=195, then concatenated with \"c\" → \"195c\".",
+    "timeSec": 50
+  },
+  {
+    "id": "ch4-mcq-22",
+    "prompt": "What is printed?\nSystem.out.println(\" \\t\\n\".trim().isEmpty());",
+    "image": null,
+    "choices": [
+      "true",
+      "false",
+      "compile error",
+      "throws exception"
+    ],
+    "answerIndex": 0,
+    "explanation": "trim removes leading/trailing spaces, tabs, newlines. Result is empty → isEmpty() true.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch4-mcq-23",
+    "prompt": "What is printed?\nSystem.out.println(\"\\u0041\\u0042\");",
+    "image": null,
+    "choices": [
+      "\\u0041\\u0042",
+      "A B (with space)",
+      "AB",
+      "A\\u0042"
+    ],
+    "answerIndex": 2,
+    "explanation": "Unicode escapes are compiled into characters: \\u0041='A', \\u0042='B' → \"AB\".",
+    "timeSec": 45
+  },
+  {
+    "id": "ch4-mcq-24",
+    "prompt": "What is printed?\nSystem.out.println(\"banana\".lastIndexOf(\"ana\"));",
+    "image": null,
+    "choices": [
+      "1",
+      "2",
+      "3",
+      "-1"
+    ],
+    "answerIndex": 2,
+    "explanation": "\"banana\": \"ana\" occurs at indices 1 and 3. lastIndexOf returns 3.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch4-mcq-25",
+    "prompt": "What is printed?\nSystem.out.println(\"abc\".substring(1,1));",
+    "image": null,
+    "choices": [
+      "a",
+      "b",
+      "empty string",
+      "IndexOutOfBoundsException"
+    ],
+    "answerIndex": 2,
+    "explanation": "substring(begin,end) excludes end. When begin==end, result is empty string.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch4-mcq-26",
+    "prompt": "What is printed?\nSystem.out.printf(\"A%nB\");",
+    "image": null,
+    "choices": [
+      "AB (no newline)",
+      "A newline B",
+      "A\\nB (literally)",
+      "B then A"
+    ],
+    "answerIndex": 1,
+    "explanation": "\"%n\" prints a platform-independent newline. Output: A, newline, then B.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch4-mcq-27",
+    "prompt": "What is printed?\nSystem.out.println(\"a.b\".replace(\".\", \"#\"));",
+    "image": null,
+    "choices": [
+      "a#b",
+      "###",
+      "a.b",
+      "regex error"
+    ],
+    "answerIndex": 0,
+    "explanation": "String.replace treats the first arg literally, not as regex. Only the dot character is replaced → \"a#b\".",
+    "timeSec": 45
+  },
+  {
+    "id": "ch5-mcq-01",
+    "prompt": "What is printed?\nfor (int i = 0; i < 3; i++) System.out.print(i);",
+    "image": null,
+    "choices": [
+      "012",
+      "123",
+      "0 1 2 ",
+      "Nothing"
+    ],
+    "answerIndex": 0,
+    "explanation": "i takes 0,1,2 then stops; printed without spaces: 012.",
+    "timeSec": 35
+  },
+  {
+    "id": "ch5-mcq-02",
+    "prompt": "What happens?\nint i = 0;\nwhile (i < 3) System.out.print(i);",
+    "image": null,
+    "choices": [
+      "Prints 012 and stops",
+      "Prints 0 repeatedly (infinite loop)",
+      "Does nothing",
+      "Compile-time error"
+    ],
+    "answerIndex": 1,
+    "explanation": "i is never changed; condition remains true; prints '0' forever.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch5-mcq-03",
+    "prompt": "What is printed?\nint count = 0;\nfor (int i = 0; i < 5; i++);\ncount++;\nSystem.out.println(count);",
+    "image": null,
+    "choices": [
+      "0",
+      "1",
+      "5",
+      "Compile-time error"
+    ],
+    "answerIndex": 1,
+    "explanation": "The stray semicolon makes the for-loop body empty. After it ends, count++ executes once → 1.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch5-mcq-04",
+    "prompt": "What is printed?\nint sum = 0;\nfor (int i = 0; i < 5; i++) {\n if (i % 2 == 0) continue;\n sum += i;\n}\nSystem.out.println(sum);",
+    "image": null,
+    "choices": [
+      "4",
+      "6",
+      "8",
+      "10"
+    ],
+    "answerIndex": 0,
+    "explanation": "Adds only odd i: 1 + 3 = 4.",
+    "timeSec": 45
+  },
+  {
+    "id": "ch5-mcq-05",
+    "prompt": "What is printed?\nint i = 0;\nwhile (i++ < 3) {}\nSystem.out.println(i);",
+    "image": null,
+    "choices": [
+      "3",
+      "4",
+      "2",
+      "Undefined"
+    ],
+    "answerIndex": 1,
+    "explanation": "Post-increment in the test increments i after comparison. It becomes 1,2,3 while the body runs. The final failed check returns 3 and increments i to 4. Final i is 4.",
+    "timeSec": 50
+  },
+  {
+    "id": "ch5-mcq-06",
+    "prompt": "What is printed?\nint i = 0;\nfor (; i < 3; ) {\n i++;\n}\nSystem.out.println(i);",
+    "image": null,
+    "choices": [
+      "0",
+      "1",
+      "2",
+      "3"
+    ],
+    "answerIndex": 3,
+    "explanation": "Manual increment inside the body; loop runs three times; i ends at 3.",
+    "timeSec": 35
+  },
+  {
+    "id": "ch5-mcq-07",
+    "prompt": "What is printed?\nfor (int i = 0; i < 3; ++i) System.out.print(i++);",
+    "image": null,
+    "choices": [
+      "01",
+      "02",
+      "012",
+      "13"
+    ],
+    "answerIndex": 1,
+    "explanation": "Iteration 1: print 0 then i→1, header ++i makes i→2; Iteration 2: print 2 then i→3, header ++i makes i→4; stop. Output \"02\".",
+    "timeSec": 50
+  },
+  {
+    "id": "ch5-mcq-08",
+    "prompt": "What is printed?\nint i = 0;\nfor (i = 0; i < 10; i++) {\n if (i == 3) break;\n}\nSystem.out.println(i);",
+    "image": null,
+    "choices": [
+      "2",
+      "3",
+      "4",
+      "10"
+    ],
+    "answerIndex": 1,
+    "explanation": "Loop exits when i == 3; i retains value 3 after break.",
+    "timeSec": 35
+  },
+  {
+    "id": "ch5-mcq-09",
+    "prompt": "What is printed?\nint count = 0;\nfor (int i = 0, j = 5; i < j; i++, j--) count++;\nSystem.out.println(count);",
+    "image": null,
+    "choices": [
+      "2",
+      "3",
+      "4",
+      "5"
+    ],
+    "answerIndex": 1,
+    "explanation": "Pairs: (0,5), (1,4), (2,3) → 3 iterations until i=3, j=2 fails.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch5-mcq-10",
+    "prompt": "What is printed?\nint x = 0;\nfor (; x < 0; x++) System.out.print(\"X\");\nSystem.out.println(x);",
+    "image": null,
+    "choices": [
+      "X",
+      "0",
+      "1",
+      "Nothing then 0"
+    ],
+    "answerIndex": 3,
+    "explanation": "The loop doesn't run; then println prints 0.",
+    "timeSec": 35
+  },
+  {
+    "id": "ch5-mcq-11",
+    "prompt": "What happens?\nwhile (true) {\n // no update\n}\nSystem.out.println(\"Done\");",
+    "image": null,
+    "choices": [
+      "Prints Done",
+      "Infinite loop",
+      "Compile-time error",
+      "Runtime exception"
+    ],
+    "answerIndex": 1,
+    "explanation": "An empty infinite loop; the println is unreachable at runtime (but not a compile error).",
+    "timeSec": 35
+  },
+  {
+    "id": "ch5-mcq-12",
+    "prompt": "What is printed?\nfor (int i = 0; i < 3; i++) {\n System.out.print(i);\n continue;\n // unreachable\n}\nSystem.out.println();",
+    "image": null,
+    "choices": [
+      "012",
+      "01",
+      "02",
+      "Nothing"
+    ],
+    "answerIndex": 0,
+    "explanation": "continue skips the (nonexistent) remainder of the body; it still prints 0,1,2.",
+    "timeSec": 35
+  },
+  {
+    "id": "ch5-mcq-13",
+    "prompt": "What happens?\nint i = 0;\nwhile (i < 3) {\n System.out.print(i);\n i--;\n}",
+    "image": null,
+    "choices": [
+      "Prints 012 and stops",
+      "Infinite loop printing decreasing values",
+      "Prints nothing",
+      "Compile-time error"
+    ],
+    "answerIndex": 1,
+    "explanation": "i becomes negative; condition i < 3 stays true forever; infinite loop.",
+    "timeSec": 40
+  },
+  {
+    "id": "ch5-mcq-14",
+    "prompt": "What is printed?\nString s = \"\";\nfor (int i = 0; i <= 3; i++) s += i;\nSystem.out.println(s);",
+    "image": null,
+    "choices": [
+      "0123",
+      "123",
+      "012",
+      "Nothing"
+    ],
+    "answerIndex": 0,
+    "explanation": "Concatenates 0,1,2,3 into the string.",
+    "timeSec": 35
+  },
+  {
+    "id": "ch5-mcq-15",
+    "prompt": "What is printed?\nint sum = 0;\nfor (int i = 1; i <= 4; i++) sum += i;\nSystem.out.println(sum);",
+    "image": null,
+    "choices": [
+      "6",
+      "7",
+      "10",
+      "11"
+    ],
+    "answerIndex": 2,
+    "explanation": "1 + 2 + 3 + 4 = 10.",
+    "timeSec": 30
+  },
+  {
+    "id": "ch5-mcq-16",
+    "prompt": "What is printed?\nfor (char c = 'A'; c < 'D'; c++) System.out.print(c);",
+    "image": null,
+    "choices": [
+      "ABCD",
+      "ABC",
+      "BCD",
+      "ACD"
+    ],
+    "answerIndex": 1,
+    "explanation": "Loop runs for 'A','B','C'. Condition c<'D' excludes 'D'.",
+    "timeSec": 35
+  },
+  {
+    "id": "ch5-mcq-17",
+    "prompt": "What happens?\nboolean b = false;\nwhile (b = true) {\n System.out.print(\"\");\n}",
+    "image": null,
+    "choices": [
+      "Prints nothing",
+      "Prints * once",
+      "Infinite loop",
+      "Compile-time error"
+    ],
+    "answerIndex": 2,
+    "explanation": "Assignment in condition sets b to true each time. Condition is always true → infinite loop.",
+    "timeSec": 45
+  }
+]
