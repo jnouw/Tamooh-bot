@@ -169,6 +169,25 @@ async function handleSoloPomodoro(interaction, client) {
   const user = interaction.user;
   const username = interaction.member.displayName || user.username;
 
+  // Remove user from queue if they're in it
+  if (state.groupQueue.has(user.id)) {
+    state.groupQueue.delete(user.id);
+    const queueSize = state.groupQueue.size;
+
+    // If queue is now empty, clear timeout
+    if (queueSize === 0) {
+      if (state.queueTimeout) {
+        clearTimeout(state.queueTimeout);
+        state.queueTimeout = null;
+      }
+      state.queueGuild = null;
+      state.queueChannel = null;
+      console.log("[Study] Queue emptied (user started solo session), timeout cleared");
+    } else {
+      console.log(`[Study] User removed from queue to start solo session. Queue size: ${queueSize}`);
+    }
+  }
+
   try {
     // Create voice channel
     const vcOptions = {
