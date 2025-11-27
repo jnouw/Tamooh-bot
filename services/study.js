@@ -52,15 +52,23 @@ export function setupStudySystem(client) {
         .setTitle("📚 Study With Me")
         .setColor(0x5865F2)
         .setDescription(
-          "الدراسة مع غيرك دايم أسهل.\n" +
+          "📚 **Study With Me**\n" +
+          "مع الطموحين.. الدراسة أسهل.\n" +
           "اختر الطريقة اللي تناسبك:\n\n" +
-          "👥 **الدراسة مع الطموحين**\n" +
-          "• **Join Group Queue** — ادخل السرا, وإذا صرتوا 3 يسوي روم و يبدأ التايمر\n" +
-          "• **Join Active Group** — ادخل على قروب بادي\n\n" +
+
+          "👥 **الدراسة مع الطموحين‎‎‎**\n" +
+          "**Join Group Queue**\n" +
+          "سجل انك تبي تدرس مع قروب، وإذا صرتوا 3 يسوي روم ويبدأ التايمر.\n\n" +
+
+          "**Join Active Group**\n" +
+          "ادخل على قروب بادي.\n\n" +
+
           "🧭 **خيارات إضافية**\n" +
-          "• View My Progress — شوف إجمالي وقتك وجلساتك\n\n" +
+          "**View My Progress**\n" +
+          "شوف إجمالي وقتك وجلساتك.\n\n" +
+
           "🔔 **التنبيهات**\n" +
-          "فعل النتبيهات اذا حاب تعرف اذا فيه قروب جديد"
+          "فعّل التنبيهات إذا حاب تعرف إذا فيه قروب جديد."
         );
 
       // Row 1 – Group study (primary)
@@ -126,7 +134,7 @@ export function setupStudySystem(client) {
       await message.reply("Study control message posted!");
     } catch (error) {
       console.error("[Study] Error posting control message:", error);
-      message.reply("Error posting control message").catch(() => {});
+      message.reply("Error posting control message").catch(() => { });
     }
   });
 
