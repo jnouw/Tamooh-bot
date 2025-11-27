@@ -28,7 +28,7 @@ import {
 } from "./utils/helpers.js";
 import { ScoreStore } from "./services/ScoreStore.js";
 import { sanitizeJavaCode } from "./utils/sanitize.js"; // NEW IMPORT
-import { setupStudySystem, handleSoloPomodoro, handleGroupQueue, handleJoinActive, handleShowStats, handleRoleAdd, handleRoleRemove } from "./services/study.js"; // ✅ STUDY FEATURE
+import { setupStudySystem, handleSoloPomodoro, handleGroupQueue, handleJoinActive, handleShowStats, handleQueueLeave, handleRoleAdd, handleRoleRemove } from "./services/study.js"; // ✅ STUDY FEATURE
 import { studyStatsStore } from "./services/StudyStatsStore.js"; // ✅ STUDY STATS
 
 // Initialize services
@@ -362,6 +362,9 @@ async function handleButton(interaction) {
   }
   if (customId === "study_stats") {
     return await handleShowStats(interaction);
+  }
+  if (customId === "study_queue_leave") {
+    return await handleQueueLeave(interaction);
   }
   if (customId === "study_role_add") {
     return await handleRoleAdd(interaction);

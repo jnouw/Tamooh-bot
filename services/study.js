@@ -21,6 +21,7 @@ const FOCUS_MS = 25 * 60 * 1000; // 25 minutes
 const EMPTY_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes
 const DELETE_DELAY_MS = 60 * 1000; // 60 seconds after completion
 const GROUP_QUEUE_THRESHOLD = 3; // Number of users needed to start group session
+const QUEUE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes - auto-start queue if not full
 
 // ---- STATE ----
 const state = {
@@ -28,6 +29,9 @@ const state = {
   activeSessions: new Map(), // voiceChannelId -> session
   groupQueue: new Set(), // Set of user IDs waiting for group session
   activeGroupSession: null, // { voiceChannelId, textChannelId } or null
+  queueTimeout: null, // Timeout for auto-starting queue
+  queueGuild: null, // Guild where queue is active
+  queueChannel: null, // Text channel where queue was started
 };
 
 /**
@@ -82,6 +86,11 @@ export function setupStudySystem(client) {
       );
 
       const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("study_queue_leave")
+          .setLabel("Leave Queue")
+          .setEmoji("🚪")
+          .setStyle(ButtonStyle.Danger),
         new ButtonBuilder()
           .setCustomId("study_role_add")
           .setLabel("Get Notifications")
@@ -212,8 +221,25 @@ async function handleGroupQueue(interaction, client) {
   state.groupQueue.add(userId);
   const queueSize = state.groupQueue.size;
 
+  // Start timeout if this is the first person
+  if (queueSize === 1) {
+    state.queueGuild = interaction.guild;
+    state.queueChannel = interaction.channel;
+
+    state.queueTimeout = setTimeout(async () => {
+      if (state.groupQueue.size > 0) {
+        await interaction.channel.send({
+          content: `⏰ Queue timeout! Starting session with ${state.groupQueue.size} ${state.groupQueue.size === 1 ? 'person' : 'people'}...`
+        });
+        await startGroupSession(interaction.guild, interaction.channel, client);
+      }
+    }, QUEUE_TIMEOUT_MS);
+
+    console.log(`[Study] Queue timeout started (${QUEUE_TIMEOUT_MS / 60000} minutes)`);
+  }
+
   await interaction.editReply({
-    content: `✅ Added to group queue!\n\n**Queue size:** ${queueSize}/${GROUP_QUEUE_THRESHOLD}`,
+    content: `✅ Added to group queue!\n\n**Queue size:** ${queueSize}/${GROUP_QUEUE_THRESHOLD}\n\n${queueSize === 1 ? `⏰ Session will auto-start in ${QUEUE_TIMEOUT_MS / 60000} minutes if not full` : ''}`,
   });
 
   // Announce in channel with role ping (if not full yet)
@@ -230,6 +256,11 @@ async function handleGroupQueue(interaction, client) {
 
   // Start session if threshold reached
   if (queueSize >= GROUP_QUEUE_THRESHOLD) {
+    // Clear timeout since we're starting now
+    if (state.queueTimeout) {
+      clearTimeout(state.queueTimeout);
+      state.queueTimeout = null;
+    }
     await startGroupSession(interaction.guild, interaction.channel, client);
   }
 }
@@ -305,8 +336,14 @@ async function startGroupSession(guild, textChannel, client) {
     // Get queued users
     const queuedUsers = Array.from(state.groupQueue);
 
-    // Clear queue
+    // Clear queue and timeout
     state.groupQueue.clear();
+    if (state.queueTimeout) {
+      clearTimeout(state.queueTimeout);
+      state.queueTimeout = null;
+    }
+    state.queueGuild = null;
+    state.queueChannel = null;
 
     // Announce
     const mentions = queuedUsers.map(id => `<@${id}>`).join(", ");
@@ -481,6 +518,48 @@ function getMotivationalMessage(sessions) {
 }
 
 /**
+ * Handle leaving the queue
+ */
+async function handleQueueLeave(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  const userId = interaction.user.id;
+
+  // Check if in queue
+  if (!state.groupQueue.has(userId)) {
+    return interaction.editReply({
+      content: "You're not in the queue.",
+    });
+  }
+
+  // Remove from queue
+  state.groupQueue.delete(userId);
+  const queueSize = state.groupQueue.size;
+
+  // If queue is now empty, clear timeout
+  if (queueSize === 0) {
+    if (state.queueTimeout) {
+      clearTimeout(state.queueTimeout);
+      state.queueTimeout = null;
+    }
+    state.queueGuild = null;
+    state.queueChannel = null;
+    console.log("[Study] Queue emptied, timeout cleared");
+  }
+
+  await interaction.editReply({
+    content: `✅ Removed from queue.\n\n${queueSize > 0 ? `**Queue size:** ${queueSize}/${GROUP_QUEUE_THRESHOLD}` : 'Queue is now empty.'}`,
+  });
+
+  // Announce if queue still has people
+  if (queueSize > 0) {
+    await interaction.channel.send({
+      content: `👋 <@${userId}> left the study queue (${queueSize}/${GROUP_QUEUE_THRESHOLD})`
+    });
+  }
+}
+
+/**
  * Handle adding study role to user
  */
 async function handleRoleAdd(interaction) {
@@ -568,6 +647,7 @@ export {
   handleGroupQueue,
   handleJoinActive,
   handleShowStats,
+  handleQueueLeave,
   handleRoleAdd,
   handleRoleRemove
 };
