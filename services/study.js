@@ -18,7 +18,7 @@ const STUDY_ROLE_ID = "1443203557628186755"; // Role ID for study notifications
 const OWNER_ID = "274462470674972682";
 
 const FOCUS_MS = 25 * 60 * 1000; // 25 minutes
-const EMPTY_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes
+const EMPTY_TIMEOUT_MS = 60 * 1000; // 1 minute
 const DELETE_DELAY_MS = 60 * 1000; // 60 seconds after completion
 const GROUP_QUEUE_THRESHOLD = 3; // Number of users needed to start group session
 const QUEUE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes - auto-start queue if not full
