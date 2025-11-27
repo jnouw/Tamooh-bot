@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { logger } from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -27,7 +28,7 @@ export class QuestionLoader {
       const data = fs.readFileSync(fullPath, 'utf8');
       return JSON.parse(data);
     } catch (error) {
-      console.error(`Failed to load ${relativePath}:`, error.message);
+      logger.error(`Failed to load ${relativePath}`, { error: error.message });
       return [];
     }
   }

@@ -356,11 +356,15 @@ async function handleGroupQueue(interaction, client) {
     state.queueChannel = interaction.channel;
 
     state.queueTimeout = setTimeout(async () => {
-      if (state.groupQueue.size > 0) {
-        await interaction.channel.send({
-          content: `⏰ Queue timeout! Starting session with ${state.groupQueue.size} ${state.groupQueue.size === 1 ? 'person' : 'people'}...`
-        });
-        await startGroupSession(interaction.guild, interaction.channel, client);
+      try {
+        if (state.groupQueue.size > 0) {
+          await interaction.channel.send({
+            content: `⏰ Queue timeout! Starting session with ${state.groupQueue.size} ${state.groupQueue.size === 1 ? 'person' : 'people'}...`
+          });
+          await startGroupSession(interaction.guild, interaction.channel, client);
+        }
+      } catch (error) {
+        console.error('[Study] Queue timeout error:', error);
       }
     }, QUEUE_TIMEOUT_MS);
 
