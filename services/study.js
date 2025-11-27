@@ -138,7 +138,7 @@ export function setupStudySystem(client) {
     }
   });
 
-  // Voice state updates (handle empty rooms)
+  // Voice state updates (handle empty rooms, mute new joiners, unmute leavers)
   client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     try {
       const channelIds = new Set();
@@ -154,6 +154,36 @@ export function setupStudySystem(client) {
 
         const vc = guild.channels.cache.get(channelId);
         if (!vc) continue;
+
+        // If someone joined this channel, mute them if session is active
+        if (newState.channelId === channelId && oldState.channelId !== channelId) {
+          // User joined this channel
+          const member = newState.member;
+          if (member && !member.user.bot && session.timer) {
+            // Session is active (timer is running), mute the new joiner
+            try {
+              await member.voice.setMute(true);
+              console.log(`[Study] Muted ${member.user.username} who joined active session ${session.id}`);
+            } catch (error) {
+              console.error(`[Study] Failed to mute new joiner ${member.id}:`, error.message);
+            }
+          }
+        }
+
+        // If someone left this channel, unmute them so they're not muted elsewhere
+        if (oldState.channelId === channelId && newState.channelId !== channelId) {
+          // User left this channel
+          const member = oldState.member;
+          if (member && !member.user.bot && session.timer) {
+            // Session is still active, unmute them so mute doesn't persist
+            try {
+              await member.voice.setMute(false);
+              console.log(`[Study] Unmuted ${member.user.username} who left active session ${session.id}`);
+            } catch (error) {
+              console.error(`[Study] Failed to unmute leaver ${member.id}:`, error.message);
+            }
+          }
+        }
 
         const memberCount = vc.members.filter(m => !m.user.bot).size;
 
@@ -425,9 +455,40 @@ function createSession(type, guildId, vcId, textId, creatorId) {
 }
 
 /**
+ * Mute or unmute all non-bot members in a voice channel
+ */
+async function setVoiceChannelMute(client, session, shouldMute) {
+  try {
+    const guild = client.guilds.cache.get(session.guildId);
+    if (!guild) return;
+
+    const vc = guild.channels.cache.get(session.voiceChannelId);
+    if (!vc) return;
+
+    const members = vc.members.filter(m => !m.user.bot);
+
+    for (const [memberId, member] of members) {
+      try {
+        await member.voice.setMute(shouldMute);
+      } catch (error) {
+        console.error(`[Study] Failed to ${shouldMute ? 'mute' : 'unmute'} member ${memberId}:`, error.message);
+      }
+    }
+
+    const action = shouldMute ? 'muted' : 'unmuted';
+    console.log(`[Study] ${action} ${members.size} members in session ${session.id}`);
+  } catch (error) {
+    console.error(`[Study] Error ${shouldMute ? 'muting' : 'unmuting'} members:`, error);
+  }
+}
+
+/**
  * Start 25-minute Pomodoro timer
  */
-function startPomodoroTimer(session, client) {
+async function startPomodoroTimer(session, client) {
+  // Mute all members in the voice channel
+  await setVoiceChannelMute(client, session, true);
+
   session.timer = setTimeout(async () => {
     await completeSession(session, client);
   }, FOCUS_MS);
@@ -448,6 +509,9 @@ async function completeSession(session, client) {
 
     const vc = guild.channels.cache.get(session.voiceChannelId);
     const textChannel = guild.channels.cache.get(session.textChannelId);
+
+    // Unmute all members before completion
+    await setVoiceChannelMute(client, session, false);
 
     // Get participants (non-bot members)
     const participants = vc?.members.filter(m => !m.user.bot) || new Map();
@@ -519,6 +583,9 @@ async function cancelSession(session, client, reason) {
   console.log(`[Study] Canceling session ${session.id}: ${reason}`);
 
   try {
+    // Unmute all members before cancelling
+    await setVoiceChannelMute(client, session, false);
+
     // Clear timers
     if (session.timer) clearTimeout(session.timer);
     if (session.emptyTimeout) clearTimeout(session.emptyTimeout);
