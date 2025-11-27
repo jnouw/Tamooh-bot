@@ -257,12 +257,27 @@ async function handleSoloPomodoro(interaction, client) {
     // Create session
     const session = createSession("solo", guild.id, vc.id, interaction.channel.id, user.id);
 
+    // Move user to the voice channel if they're in one
+    const member = interaction.member;
+    let movedUser = false;
+    if (member.voice.channel) {
+      try {
+        await member.voice.setChannel(vc);
+        movedUser = true;
+        console.log(`[Study] Moved ${username} into solo session VC`);
+      } catch (error) {
+        console.error(`[Study] Failed to move user to VC:`, error.message);
+      }
+    }
+
     // Start 25-minute timer
     startPomodoroTimer(session, client);
 
     // Reply with jump link
     await interaction.editReply({
-      content: `✅ **Solo session created!**\n\nClick to join: <#${vc.id}>\n\n⏱️ 25-minute timer started. Good luck!`,
+      content: movedUser
+        ? `✅ **Solo session created!**\n\n⏱️ 25-minute timer started. Good luck!`
+        : `✅ **Solo session created!**\n\nClick to join: <#${vc.id}>\n\n⏱️ 25-minute timer started. Good luck!`,
     });
 
     console.log(`[Study] Solo session created for ${username}`);
@@ -370,8 +385,27 @@ async function handleJoinActive(interaction, client) {
   }
 
   const vcId = state.activeGroupSession.voiceChannelId;
+  const member = interaction.member;
+  let movedUser = false;
+
+  // Move user to the group voice channel if they're in one
+  if (member.voice.channel) {
+    try {
+      const vc = interaction.guild.channels.cache.get(vcId);
+      if (vc) {
+        await member.voice.setChannel(vc);
+        movedUser = true;
+        console.log(`[Study] Moved ${member.displayName || member.user.username} into active group session`);
+      }
+    } catch (error) {
+      console.error(`[Study] Failed to move user to group VC:`, error.message);
+    }
+  }
+
   await interaction.editReply({
-    content: `🚀 **Join the active group session:**\n\n<#${vcId}>`,
+    content: movedUser
+      ? `🚀 **Joined the active group session!**\n\n⏱️ Good luck!`
+      : `🚀 **Join the active group session:**\n\n<#${vcId}>`,
   });
 }
 
@@ -437,10 +471,29 @@ async function startGroupSession(guild, textChannel, client) {
     state.queueGuild = null;
     state.queueChannel = null;
 
+    // Move queued users who are in voice channels
+    let movedCount = 0;
+    for (const userId of queuedUsers) {
+      try {
+        const member = await guild.members.fetch(userId);
+        if (member.voice.channel) {
+          await member.voice.setChannel(vc);
+          movedCount++;
+          console.log(`[Study] Moved ${member.displayName || member.user.username} into group session`);
+        }
+      } catch (error) {
+        console.error(`[Study] Failed to move user ${userId} to group VC:`, error.message);
+      }
+    }
+
     // Announce
     const mentions = queuedUsers.map(id => `<@${id}>`).join(", ");
+    const announceContent = movedCount === queuedUsers.length
+      ? `🎉 **Group Pomodoro starting!**\n\n${mentions}\n\n⏱️ 25-minute session begins now!`
+      : `🎉 **Group Pomodoro starting!**\n\n${mentions}\n\nJoin the channel: <#${vc.id}>\n⏱️ 25-minute session begins now!`;
+
     await textChannel.send({
-      content: `🎉 **Group Pomodoro starting!**\n\n${mentions}\n\nJoin the channel: <#${vc.id}>\n⏱️ 25-minute session begins now!`
+      content: announceContent
     });
 
     // Start timer
