@@ -49,21 +49,16 @@ export function setupStudySystem(client) {
         .setColor(0x5865F2)
         .setDescription(
           "**Start your focused study session:**\n\n" +
-          "🎯 **Start Solo Pomodoro** — Create your own 25-minute focus session\n" +
           "👥 **Join Group Queue** — Wait for 3 people to start together\n" +
           "🚀 **Join Active Group** — Jump into an ongoing group session\n" +
+          "🎯 **Start Solo Pomodoro** — Create your own 25-minute focus session\n" +
           "📊 **Show My Stats** — View your study progress\n\n" +
           "**Notifications:**\n" +
-          "🔔 Get notified when study sessions start\n\n" +
+          "🔔 Get notified when someone joins the study queue\n\n" +
           "*Empty rooms are automatically deleted after 3 minutes*"
         );
 
       const row1 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId("study_solo")
-          .setLabel("Start Solo Pomodoro")
-          .setEmoji("🎯")
-          .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
           .setCustomId("study_queue")
           .setLabel("Join Group Queue")
@@ -74,6 +69,11 @@ export function setupStudySystem(client) {
           .setLabel("Join Active Group")
           .setEmoji("🚀")
           .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId("study_solo")
+          .setLabel("Start Solo Pomodoro")
+          .setEmoji("🎯")
+          .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
           .setCustomId("study_stats")
           .setLabel("Show My Stats")
@@ -216,10 +216,17 @@ async function handleGroupQueue(interaction, client) {
     content: `✅ Added to group queue!\n\n**Queue size:** ${queueSize}/${GROUP_QUEUE_THRESHOLD}`,
   });
 
-  // Announce in channel
-  await interaction.channel.send({
-    content: `👥 <@${userId}> joined the study queue (${queueSize}/${GROUP_QUEUE_THRESHOLD})`
-  });
+  // Announce in channel with role ping (if not full yet)
+  if (queueSize < GROUP_QUEUE_THRESHOLD) {
+    const rolePing = STUDY_ROLE_ID ? `<@&${STUDY_ROLE_ID}>` : "";
+    const announcement = rolePing
+      ? `${rolePing} 👥 <@${userId}> joined the study queue! **(${queueSize}/${GROUP_QUEUE_THRESHOLD})**\n\nJoin now to start a group session!`
+      : `👥 <@${userId}> joined the study queue (${queueSize}/${GROUP_QUEUE_THRESHOLD})`;
+
+    await interaction.channel.send({
+      content: announcement
+    });
+  }
 
   // Start session if threshold reached
   if (queueSize >= GROUP_QUEUE_THRESHOLD) {
