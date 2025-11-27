@@ -25,7 +25,7 @@ const commands = [
               { name: 'Multiple Choice (8 questions)', value: 'mcq' },
               { name: 'Find the Error (3 questions)', value: 'finderror' },
               { name: 'Predict Output (5 questions)', value: 'output' },
-              { name: 'Coding Challenge (5 questions)', value: 'code' }
+              { name: 'Coding Challenge (1 question)', value: 'code' }
             )
         )
         .addStringOption(o =>

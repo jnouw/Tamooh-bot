@@ -89,10 +89,14 @@ export class ScoreStore {
    */
   async saveDebounced() {
     if (this.pendingSave) return;
-    
+
     this.pendingSave = true;
-    setTimeout(() => {
-      this.save();
+    setTimeout(async () => {
+      try {
+        await this.save();
+      } catch (error) {
+        logger.error('Debounced save failed', { error: error.message });
+      }
     }, 5000); // Save after 5 seconds of inactivity
   }
 

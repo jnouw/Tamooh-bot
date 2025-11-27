@@ -91,13 +91,13 @@ export class SessionManager {
     if (!session) return;
 
     this.clearTimer(sid, questionIndex);
-    
-    const timer = setTimeout(() => {
+
+    const timer = setTimeout(async () => {
       // Critical: Check session still exists and isn't finished
       const currentSession = this.sessions.get(sid);
       if (currentSession && !currentSession.finished) {
         try {
-          onExpire();
+          await onExpire();
         } catch (error) {
           logger.error('Timer callback error', { sid, questionIndex, error: error.message });
         }
