@@ -14,6 +14,7 @@ const {
 // These can be configured per server in the future
 const STUDY_CHANNEL_ID = "1443362550447341609";
 const VOICE_CATEGORY_ID = null; // Set to a category ID if you want VCs created under a specific category
+const STUDY_ROLE_ID = "1443203557628186755"; // Role ID for study notifications
 const OWNER_ID = "274462470674972682";
 
 const FOCUS_MS = 25 * 60 * 1000; // 25 minutes
@@ -52,10 +53,12 @@ export function setupStudySystem(client) {
           "👥 **Join Group Queue** — Wait for 3 people to start together\n" +
           "🚀 **Join Active Group** — Jump into an ongoing group session\n" +
           "📊 **Show My Stats** — View your study progress\n\n" +
+          "**Notifications:**\n" +
+          "🔔 Get notified when study sessions start\n\n" +
           "*Empty rooms are automatically deleted after 3 minutes*"
         );
 
-      const row = new ActionRowBuilder().addComponents(
+      const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId("study_solo")
           .setLabel("Start Solo Pomodoro")
@@ -78,9 +81,22 @@ export function setupStudySystem(client) {
           .setStyle(ButtonStyle.Secondary)
       );
 
+      const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("study_role_add")
+          .setLabel("Get Notifications")
+          .setEmoji("🔔")
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId("study_role_remove")
+          .setLabel("Remove Notifications")
+          .setEmoji("🔕")
+          .setStyle(ButtonStyle.Secondary)
+      );
+
       await message.channel.send({
         embeds: [embed],
-        components: [row],
+        components: [row1, row2],
       });
 
       await message.reply("Study control message posted!");
@@ -458,11 +474,93 @@ function getMotivationalMessage(sessions) {
 }
 
 /**
+ * Handle adding study role to user
+ */
+async function handleRoleAdd(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  if (!STUDY_ROLE_ID) {
+    return interaction.editReply({
+      content: "❌ Study role not configured. Contact an admin.",
+    });
+  }
+
+  try {
+    const member = interaction.member;
+    const role = interaction.guild.roles.cache.get(STUDY_ROLE_ID);
+
+    if (!role) {
+      return interaction.editReply({
+        content: "❌ Study role not found. Contact an admin.",
+      });
+    }
+
+    if (member.roles.cache.has(STUDY_ROLE_ID)) {
+      return interaction.editReply({
+        content: "✅ You already have study notifications enabled!",
+      });
+    }
+
+    await member.roles.add(role);
+    await interaction.editReply({
+      content: `✅ You'll now be notified when study sessions start!\n\nRole: ${role}`,
+    });
+  } catch (error) {
+    console.error("[Study] Error adding role:", error);
+    await interaction.editReply({
+      content: "❌ Failed to add role. Make sure the bot has permission to manage roles.",
+    });
+  }
+}
+
+/**
+ * Handle removing study role from user
+ */
+async function handleRoleRemove(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  if (!STUDY_ROLE_ID) {
+    return interaction.editReply({
+      content: "❌ Study role not configured. Contact an admin.",
+    });
+  }
+
+  try {
+    const member = interaction.member;
+    const role = interaction.guild.roles.cache.get(STUDY_ROLE_ID);
+
+    if (!role) {
+      return interaction.editReply({
+        content: "❌ Study role not found. Contact an admin.",
+      });
+    }
+
+    if (!member.roles.cache.has(STUDY_ROLE_ID)) {
+      return interaction.editReply({
+        content: "✅ You don't have study notifications enabled.",
+      });
+    }
+
+    await member.roles.remove(role);
+    await interaction.editReply({
+      content: "✅ Study notifications disabled. You can re-enable them anytime!",
+    });
+  } catch (error) {
+    console.error("[Study] Error removing role:", error);
+    await interaction.editReply({
+      content: "❌ Failed to remove role. Make sure the bot has permission to manage roles.",
+    });
+  }
+}
+
+/**
  * Export button handlers for use in main button handler
  */
 export {
   handleSoloPomodoro,
   handleGroupQueue,
   handleJoinActive,
-  handleShowStats
+  handleShowStats,
+  handleRoleAdd,
+  handleRoleRemove
 };
