@@ -57,6 +57,32 @@ async function logToChannel(client, guildId, embed) {
 }
 
 /**
+ * Auto-assign study role to user if they don't have it
+ */
+async function autoAssignStudyRole(member) {
+  if (!STUDY_ROLE_ID) return;
+
+  try {
+    // Check if user already has the role
+    if (member.roles.cache.has(STUDY_ROLE_ID)) {
+      return; // Already has the role
+    }
+
+    // Assign the role
+    const role = member.guild.roles.cache.get(STUDY_ROLE_ID);
+    if (!role) {
+      console.warn("[Study] Study role not found for auto-assignment");
+      return;
+    }
+
+    await member.roles.add(role);
+    console.log(`[Study] Auto-assigned study role to ${member.user.username}`);
+  } catch (error) {
+    console.error("[Study] Failed to auto-assign study role:", error.message);
+  }
+}
+
+/**
  * Setup the study system
  * @param {Discord.Client} client - Discord client
  */
@@ -311,11 +337,11 @@ export function setupStudySystem(client) {
         if (oldState.channelId === channelId && newState.channelId !== channelId) {
           // User left this channel
           const member = oldState.member;
-          if (member && !member.user.bot && session.timer) {
-            // Session is still active, unmute them so mute doesn't persist
+          if (member && !member.user.bot) {
+            // Always unmute when leaving study VC to prevent mute from persisting
             try {
               await member.voice.setMute(false);
-              console.log(`[Study] Unmuted ${member.user.username} who left active session ${session.id}`);
+              console.log(`[Study] Unmuted ${member.user.username} who left session ${session.id}`);
             } catch (error) {
               console.error(`[Study] Failed to unmute leaver ${member.id}:`, error.message);
             }
@@ -354,6 +380,9 @@ export function setupStudySystem(client) {
  */
 async function handleSoloPomodoro(interaction, client) {
   await interaction.deferReply({ ephemeral: true });
+
+  // Auto-assign study role
+  await autoAssignStudyRole(interaction.member);
 
   const guild = interaction.guild;
   const user = interaction.user;
@@ -444,6 +473,9 @@ async function handleSoloPomodoro(interaction, client) {
  */
 async function handleGroupQueue(interaction, client) {
   await interaction.deferReply({ ephemeral: true });
+
+  // Auto-assign study role
+  await autoAssignStudyRole(interaction.member);
 
   const userId = interaction.user.id;
 
@@ -538,6 +570,9 @@ async function handleGroupQueue(interaction, client) {
 async function handleJoinActive(interaction, client) {
   await interaction.deferReply({ ephemeral: true });
 
+  // Auto-assign study role
+  await autoAssignStudyRole(interaction.member);
+
   if (!state.activeGroupSession) {
     return interaction.editReply({
       content: "No active group session right now. Use **Join Group Queue** to start one!",
@@ -585,6 +620,9 @@ async function handleJoinActive(interaction, client) {
  */
 async function handleShowStats(interaction) {
   await interaction.deferReply({ ephemeral: true });
+
+  // Auto-assign study role
+  await autoAssignStudyRole(interaction.member);
 
   const userId = interaction.user.id;
   const guildId = interaction.guild.id;
@@ -780,6 +818,28 @@ async function completeSession(session, client) {
       // Log completion for each participant
       for (const [userId] of participants) {
         await studyStatsStore.recordSession(userId, session.guildId, 25);
+      }
+
+      // Send DM to each participant about break time
+      for (const [userId, member] of participants) {
+        try {
+          const dmEmbed = new EmbedBuilder()
+            .setTitle("🎉 Study Session Complete!")
+            .setColor(0x57F287)
+            .setDescription(
+              `Great job on completing your **25-minute** study session!\n\n` +
+              `🧘 **Time for a break!**\n` +
+              `Take 5-10 minutes to rest, stretch, or grab a snack.\n\n` +
+              `You've earned it! 💪`
+            )
+            .setTimestamp();
+
+          await member.user.send({ embeds: [dmEmbed] });
+          console.log(`[Study] Sent break DM to ${member.user.username}`);
+        } catch (error) {
+          // User might have DMs disabled
+          console.log(`[Study] Could not send DM to ${member.user.username}: ${error.message}`);
+        }
       }
 
       // Post summary
