@@ -185,6 +185,41 @@ export function setupStudySystem(client) {
     }
   });
 
+  // Command to post study group join message
+  client.on(Events.MessageCreate, async (message) => {
+    if (message.author.bot) return;
+    if (message.author.id !== OWNER_ID) return;
+    if (message.content.trim() !== "!studygroup") return;
+
+    try {
+      const embed = new EmbedBuilder()
+        .setTitle("📚 قروب المذاكرين")
+        .setColor(0x5865F2)
+        .setDescription(
+          "انضم لقروب المذاكرين وشارك مع زملائك في جلسات الدراسة!\n\n" +
+          "اضغط على الزر بالأسفل للحصول على صلاحيات الوصول للقناة 👇"
+        );
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("study_group_join")
+          .setLabel("انضم لقروب المذاكرين من هنا")
+          .setEmoji("📖")
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      await message.channel.send({
+        embeds: [embed],
+        components: [row],
+      });
+
+      await message.delete().catch(() => {});
+    } catch (error) {
+      console.error("[Study] Error posting study group join message:", error);
+      message.reply("Error posting study group join message").catch(() => { });
+    }
+  });
+
   // Owner command to run a giveaway
   client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
@@ -1108,6 +1143,53 @@ async function handleRoleRemove(interaction) {
 }
 
 /**
+ * Handle joining study group - gives role and notifies about channel access
+ */
+async function handleStudyGroupJoin(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  if (!STUDY_ROLE_ID || !STUDY_CHANNEL_ID) {
+    return interaction.editReply({
+      content: "❌ Study group not configured. Contact an admin.",
+    });
+  }
+
+  try {
+    const member = interaction.member;
+    const role = interaction.guild.roles.cache.get(STUDY_ROLE_ID);
+    const channel = interaction.guild.channels.cache.get(STUDY_CHANNEL_ID);
+
+    if (!role) {
+      return interaction.editReply({
+        content: "❌ Study role not found. Contact an admin.",
+      });
+    }
+
+    if (!channel) {
+      return interaction.editReply({
+        content: "❌ Study channel not found. Contact an admin.",
+      });
+    }
+
+    if (member.roles.cache.has(STUDY_ROLE_ID)) {
+      return interaction.editReply({
+        content: `✅ You're already a member of the study group!\n\nYou can access the channel here: ${channel}`,
+      });
+    }
+
+    await member.roles.add(role);
+    await interaction.editReply({
+      content: `✅ Welcome to the study group!\n\nYou now have access to ${channel}\n\nRole: ${role}`,
+    });
+  } catch (error) {
+    console.error("[Study] Error joining study group:", error);
+    await interaction.editReply({
+      content: "❌ Failed to join study group. Make sure the bot has permission to manage roles.",
+    });
+  }
+}
+
+/**
  * Export button handlers for use in main button handler
  */
 export {
@@ -1117,5 +1199,6 @@ export {
   handleShowStats,
   handleQueueLeave,
   handleRoleAdd,
-  handleRoleRemove
+  handleRoleRemove,
+  handleStudyGroupJoin
 };
