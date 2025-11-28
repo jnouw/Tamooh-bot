@@ -28,7 +28,7 @@ import {
 } from "./utils/helpers.js";
 import { ScoreStore } from "./services/ScoreStore.js";
 import { sanitizeJavaCode } from "./utils/sanitize.js"; // NEW IMPORT
-import { setupStudySystem, handleSoloPomodoro, handleGroupQueue, handleJoinActive, handleShowStats, handleQueueLeave, handleRoleAdd, handleRoleRemove } from "./services/study.js"; // ✅ STUDY FEATURE
+import { setupStudySystem, handleSoloPomodoro, handleGroupQueue, handleJoinActive, handleShowStats, handleQueueLeave, handleRoleAdd, handleRoleRemove, handleStudyGroupJoin } from "./services/study.js"; // ✅ STUDY FEATURE
 import { studyStatsStore } from "./services/StudyStatsStore.js"; // ✅ STUDY STATS
 
 // Initialize services
@@ -372,6 +372,9 @@ async function handleButton(interaction) {
   }
   if (customId === "study_role_remove") {
     return await handleRoleRemove(interaction);
+  }
+  if (customId === "study_group_join") {
+    return await handleStudyGroupJoin(interaction);
   }
 
   // Quiz buttons (have session IDs)
