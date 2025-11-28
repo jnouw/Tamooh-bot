@@ -14,7 +14,7 @@ const {
 // These can be configured per server in the future
 const STUDY_CHANNEL_ID = "1443362550447341609";
 const STUDY_LOG_CHANNEL_ID = "1443363449504530492"; // Channel for session logging
-const VOICE_CATEGORY_ID = null; // Set to a category ID if you want VCs created under a specific category
+const VOICE_CATEGORY_ID = "1366787196719468645"; // Set to a category ID if you want VCs created under a specific category
 const STUDY_ROLE_ID = "1443203557628186755"; // Role ID for study notifications (@نذاكر سوا)
 const TAMOOH_ROLE_ID = "1367043626806542336"; // Role ID for @طموح
 const OWNER_ID = "274462470674972682";

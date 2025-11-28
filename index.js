@@ -46,6 +46,7 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildVoiceStates, // ✅ Required for study system
+    GatewayIntentBits.GuildMembers,
   ],
 });
 
