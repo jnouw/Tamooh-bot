@@ -337,11 +337,11 @@ export function setupStudySystem(client) {
         if (oldState.channelId === channelId && newState.channelId !== channelId) {
           // User left this channel
           const member = oldState.member;
-          if (member && !member.user.bot && session.timer) {
-            // Session is still active, unmute them so mute doesn't persist
+          if (member && !member.user.bot) {
+            // Always unmute when leaving study VC to prevent mute from persisting
             try {
               await member.voice.setMute(false);
-              console.log(`[Study] Unmuted ${member.user.username} who left active session ${session.id}`);
+              console.log(`[Study] Unmuted ${member.user.username} who left session ${session.id}`);
             } catch (error) {
               console.error(`[Study] Failed to unmute leaver ${member.id}:`, error.message);
             }
@@ -818,6 +818,28 @@ async function completeSession(session, client) {
       // Log completion for each participant
       for (const [userId] of participants) {
         await studyStatsStore.recordSession(userId, session.guildId, 25);
+      }
+
+      // Send DM to each participant about break time
+      for (const [userId, member] of participants) {
+        try {
+          const dmEmbed = new EmbedBuilder()
+            .setTitle("🎉 Study Session Complete!")
+            .setColor(0x57F287)
+            .setDescription(
+              `Great job on completing your **25-minute** study session!\n\n` +
+              `🧘 **Time for a break!**\n` +
+              `Take 5-10 minutes to rest, stretch, or grab a snack.\n\n` +
+              `You've earned it! 💪`
+            )
+            .setTimestamp();
+
+          await member.user.send({ embeds: [dmEmbed] });
+          console.log(`[Study] Sent break DM to ${member.user.username}`);
+        } catch (error) {
+          // User might have DMs disabled
+          console.log(`[Study] Could not send DM to ${member.user.username}: ${error.message}`);
+        }
       }
 
       // Post summary
