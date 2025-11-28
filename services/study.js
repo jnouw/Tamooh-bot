@@ -15,7 +15,8 @@ const {
 const STUDY_CHANNEL_ID = "1443362550447341609";
 const STUDY_LOG_CHANNEL_ID = "1443363449504530492"; // Channel for session logging
 const VOICE_CATEGORY_ID = null; // Set to a category ID if you want VCs created under a specific category
-const STUDY_ROLE_ID = "1443203557628186755"; // Role ID for study notifications
+const STUDY_ROLE_ID = "1443203557628186755"; // Role ID for study notifications (@نذاكر سوا)
+const TAMOOH_ROLE_ID = "1367043626806542336"; // Role ID for @طموح
 const OWNER_ID = "274462470674972682";
 
 const FOCUS_MS = 25 * 60 * 1000; // 25 minutes
@@ -155,6 +156,122 @@ export function setupStudySystem(client) {
     } catch (error) {
       console.error("[Study] Error posting control message:", error);
       message.reply("Error posting control message").catch(() => { });
+    }
+  });
+
+  // Owner command to run a giveaway
+  client.on(Events.MessageCreate, async (message) => {
+    if (message.author.bot) return;
+    if (message.author.id !== OWNER_ID) return;
+    if (!message.content.trim().startsWith("!giveaway")) return;
+
+    try {
+      // Parse prize name from command
+      const args = message.content.trim().split(/\s+/);
+      if (args.length < 2) {
+        return message.reply("❌ Please specify a prize name. Example: `!giveaway airpods4`");
+      }
+
+      const prizeName = args.slice(1).join(" ");
+      const guildId = message.guild.id;
+
+      await message.reply(`🎁 Starting giveaway for **${prizeName}**...\nFetching eligible participants...`);
+
+      // Fetch all guild members
+      await message.guild.members.fetch();
+
+      // Get all users with session counts
+      const allMembers = message.guild.members.cache;
+      const eligibleUsers = [];
+
+      for (const [userId, member] of allMembers) {
+        // Skip bots
+        if (member.user.bot) continue;
+
+        // Check if user has BOTH required roles
+        const hasStudyRole = member.roles.cache.has(STUDY_ROLE_ID);
+        const hasTamoohRole = member.roles.cache.has(TAMOOH_ROLE_ID);
+
+        if (!hasStudyRole || !hasTamoohRole) continue;
+
+        // Get user's session stats
+        const stats = studyStatsStore.getUserStats(userId, guildId);
+
+        // Add to eligible users with their session count (tickets = 1 base + sessions)
+        eligibleUsers.push({
+          userId,
+          username: member.user.username,
+          displayName: member.displayName || member.user.username,
+          sessions: stats.totalSessions,
+          hours: stats.totalHours,
+          tickets: 1 + stats.totalSessions // 1 base ticket for having both roles + sessions
+        });
+      }
+
+      // Check if we have any eligible users
+      if (eligibleUsers.length === 0) {
+        return message.channel.send("❌ No eligible participants found!\n\nUsers must have both roles: <@&" + STUDY_ROLE_ID + "> and <@&" + TAMOOH_ROLE_ID + ">");
+      }
+
+      // Build weighted pool (1 base ticket for roles + 1 ticket per session)
+      const weightedPool = [];
+      for (const user of eligibleUsers) {
+        for (let i = 0; i < user.tickets; i++) {
+          weightedPool.push(user);
+        }
+      }
+
+      // Pick a random winner from the weighted pool
+      const winnerIndex = Math.floor(Math.random() * weightedPool.length);
+      const winner = weightedPool[winnerIndex];
+
+      // Calculate total tickets
+      const totalTickets = weightedPool.length;
+
+      // Create winner announcement embed
+      const embed = new EmbedBuilder()
+        .setTitle("🎉 Giveaway Winner!")
+        .setColor(0xFFD700) // Gold color
+        .setDescription(
+          `**Prize:** ${prizeName}\n\n` +
+          `**Winner:** <@${winner.userId}>\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `**Winner Stats:**\n` +
+          `🎫 Tickets: ${winner.tickets}\n` +
+          `📚 Study Sessions: ${winner.sessions}\n` +
+          `⏱️ Study Hours: ${winner.hours}\n\n` +
+          `**Giveaway Info:**\n` +
+          `👥 Eligible Participants: ${eligibleUsers.length}\n` +
+          `🎫 Total Tickets: ${totalTickets}\n` +
+          `📊 Win Chance: ${((winner.tickets / totalTickets) * 100).toFixed(2)}%`
+        )
+        .setFooter({ text: "More sessions = More chances to win!" })
+        .setTimestamp();
+
+      // Send announcement
+      await message.channel.send({ embeds: [embed] });
+
+      // Log to study log channel
+      const logEmbed = new EmbedBuilder()
+        .setTitle("🎁 Giveaway Completed")
+        .setColor(0xFFD700)
+        .addFields(
+          { name: "Prize", value: prizeName, inline: true },
+          { name: "Winner", value: `<@${winner.userId}>`, inline: true },
+          { name: "Winner Tickets", value: `${winner.tickets}`, inline: true },
+          { name: "Total Participants", value: `${eligibleUsers.length}`, inline: true },
+          { name: "Total Tickets", value: `${totalTickets}`, inline: true },
+          { name: "Triggered By", value: `<@${message.author.id}>`, inline: true }
+        )
+        .setTimestamp();
+
+      await logToChannel(client, guildId, logEmbed);
+
+      console.log(`[Giveaway] Winner: ${winner.username} (${winner.tickets} tickets out of ${totalTickets})`);
+
+    } catch (error) {
+      console.error("[Giveaway] Error running giveaway:", error);
+      message.reply("❌ Error running giveaway. Check console for details.").catch(() => { });
     }
   });
 
