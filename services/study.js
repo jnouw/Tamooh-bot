@@ -197,28 +197,26 @@ export function setupStudySystem(client) {
         // Get user's session stats
         const stats = studyStatsStore.getUserStats(userId, guildId);
 
-        // Check if user has at least 1 session
-        if (stats.totalSessions === 0) continue;
-
-        // Add to eligible users with their session count (tickets)
+        // Add to eligible users with their session count (tickets = 1 base + sessions)
         eligibleUsers.push({
           userId,
           username: member.user.username,
           displayName: member.displayName || member.user.username,
           sessions: stats.totalSessions,
-          hours: stats.totalHours
+          hours: stats.totalHours,
+          tickets: 1 + stats.totalSessions // 1 base ticket for having both roles + sessions
         });
       }
 
       // Check if we have any eligible users
       if (eligibleUsers.length === 0) {
-        return message.channel.send("❌ No eligible participants found!\n\nUsers must have:\n- Both roles: <@&" + STUDY_ROLE_ID + "> and <@&" + TAMOOH_ROLE_ID + ">\n- At least 1 completed study session");
+        return message.channel.send("❌ No eligible participants found!\n\nUsers must have both roles: <@&" + STUDY_ROLE_ID + "> and <@&" + TAMOOH_ROLE_ID + ">");
       }
 
-      // Build weighted pool (each session = 1 ticket)
+      // Build weighted pool (1 base ticket for roles + 1 ticket per session)
       const weightedPool = [];
       for (const user of eligibleUsers) {
-        for (let i = 0; i < user.sessions; i++) {
+        for (let i = 0; i < user.tickets; i++) {
           weightedPool.push(user);
         }
       }
@@ -239,12 +237,13 @@ export function setupStudySystem(client) {
           `**Winner:** <@${winner.userId}>\n\n` +
           `━━━━━━━━━━━━━━━━━━━━\n\n` +
           `**Winner Stats:**\n` +
-          `🎫 Tickets: ${winner.sessions}\n` +
-          `📚 Study Hours: ${winner.hours}\n\n` +
+          `🎫 Tickets: ${winner.tickets}\n` +
+          `📚 Study Sessions: ${winner.sessions}\n` +
+          `⏱️ Study Hours: ${winner.hours}\n\n` +
           `**Giveaway Info:**\n` +
           `👥 Eligible Participants: ${eligibleUsers.length}\n` +
           `🎫 Total Tickets: ${totalTickets}\n` +
-          `📊 Win Chance: ${((winner.sessions / totalTickets) * 100).toFixed(2)}%`
+          `📊 Win Chance: ${((winner.tickets / totalTickets) * 100).toFixed(2)}%`
         )
         .setFooter({ text: "More sessions = More chances to win!" })
         .setTimestamp();
@@ -259,7 +258,7 @@ export function setupStudySystem(client) {
         .addFields(
           { name: "Prize", value: prizeName, inline: true },
           { name: "Winner", value: `<@${winner.userId}>`, inline: true },
-          { name: "Winner Tickets", value: `${winner.sessions}`, inline: true },
+          { name: "Winner Tickets", value: `${winner.tickets}`, inline: true },
           { name: "Total Participants", value: `${eligibleUsers.length}`, inline: true },
           { name: "Total Tickets", value: `${totalTickets}`, inline: true },
           { name: "Triggered By", value: `<@${message.author.id}>`, inline: true }
@@ -268,7 +267,7 @@ export function setupStudySystem(client) {
 
       await logToChannel(client, guildId, logEmbed);
 
-      console.log(`[Giveaway] Winner: ${winner.username} (${winner.sessions} tickets out of ${totalTickets})`);
+      console.log(`[Giveaway] Winner: ${winner.username} (${winner.tickets} tickets out of ${totalTickets})`);
 
     } catch (error) {
       console.error("[Giveaway] Error running giveaway:", error);
