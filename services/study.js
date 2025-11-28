@@ -312,6 +312,55 @@ export function setupStudySystem(client) {
       // Send announcement
       await message.channel.send({ embeds: [embed] });
 
+      // Create eligible users list sorted by tickets (descending)
+      const sortedUsers = [...eligibleUsers].sort((a, b) => b.tickets - a.tickets);
+
+      // Build the eligible users list
+      let userListText = "";
+      for (let i = 0; i < sortedUsers.length; i++) {
+        const user = sortedUsers[i];
+        const winPercentage = ((user.tickets / totalTickets) * 100).toFixed(2);
+        userListText += `**${i + 1}.** ${user.displayName}\n`;
+        userListText += `   └ 📚 Sessions: ${user.sessions} | 🎫 Tickets: ${user.tickets} | 📊 Win Chance: ${winPercentage}%\n\n`;
+      }
+
+      // Split the user list if it's too long for Discord (max 2000 chars per message)
+      const MAX_MESSAGE_LENGTH = 1900; // Leave some buffer
+      const userListChunks = [];
+      let currentChunk = "";
+
+      const lines = userListText.split('\n');
+      for (const line of lines) {
+        if ((currentChunk + line + '\n').length > MAX_MESSAGE_LENGTH) {
+          userListChunks.push(currentChunk);
+          currentChunk = line + '\n';
+        } else {
+          currentChunk += line + '\n';
+        }
+      }
+      if (currentChunk.trim()) {
+        userListChunks.push(currentChunk);
+      }
+
+      // Send eligible users list
+      for (let i = 0; i < userListChunks.length; i++) {
+        const listEmbed = new EmbedBuilder()
+          .setTitle(i === 0 ? "📋 All Eligible Participants" : `📋 All Eligible Participants (continued ${i + 1})`)
+          .setColor(0x5865F2)
+          .setDescription(userListChunks[i])
+          .setFooter({
+            text: i === userListChunks.length - 1
+              ? `Total: ${eligibleUsers.length} participants | ${totalTickets} tickets`
+              : `Page ${i + 1}/${userListChunks.length}`
+          });
+
+        if (i === userListChunks.length - 1) {
+          listEmbed.setTimestamp();
+        }
+
+        await message.channel.send({ embeds: [listEmbed] });
+      }
+
       // Log to study log channel
       const logEmbed = new EmbedBuilder()
         .setTitle("🎁 Giveaway Completed")
