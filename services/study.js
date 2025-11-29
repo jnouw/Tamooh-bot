@@ -30,11 +30,26 @@ const QUEUE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes - auto-start queue if not
 const state = {
   sessionCounter: 0,
   activeSessions: new Map(), // voiceChannelId -> session
-  groupQueue: new Set(), // Set of user IDs waiting for group session
-  activeGroupSession: null, // { voiceChannelId, textChannelId } or null
-  queueTimeout: null, // Timeout for auto-starting queue
-  queueGuild: null, // Guild where queue is active
-  queueChannel: null, // Text channel where queue was started
+  groupQueues: {
+    25: new Set(), // Set of user IDs waiting for 25min group session
+    50: new Set(), // Set of user IDs waiting for 50min group session
+  },
+  activeGroupSessions: {
+    25: null, // { voiceChannelId, textChannelId } or null
+    50: null, // { voiceChannelId, textChannelId } or null
+  },
+  queueTimeouts: {
+    25: null, // Timeout for auto-starting 25min queue
+    50: null, // Timeout for auto-starting 50min queue
+  },
+  queueGuilds: {
+    25: null, // Guild where 25min queue is active
+    50: null, // Guild where 50min queue is active
+  },
+  queueChannels: {
+    25: null, // Text channel where 25min queue was started
+    50: null, // Text channel where 50min queue was started
+  },
 };
 
 /**
@@ -106,10 +121,12 @@ export function setupStudySystem(client) {
 
           "👥 **الدراسة مع الطموحين‎‎‎**\n" +
           "**Join Group Queue**\n" +
-          "سجل انك تبي تدرس مع قروب، وإذا صرتوا 3 يسوي روم ويبدأ التايمر.\n\n" +
+          "سجل انك تبي تدرس مع قروب، وإذا صرتوا 3 يسوي روم ويبدأ التايمر.\n" +
+          "اختر: 25 دقيقة أو 50 دقيقة.\n\n" +
 
           "⏱️ **Solo Timer**\n" +
-          "ابدأ جلسة دراسة فردية لمدة 25 دقيقة.\n\n" +
+          "ابدأ جلسة دراسة فردية.\n" +
+          "اختر: 25 دقيقة أو 50 دقيقة.\n\n" +
 
           "🧭 **خيارات إضافية**\n" +
           "**View My Progress**\n" +
@@ -119,21 +136,31 @@ export function setupStudySystem(client) {
           "فعّل التنبيهات إذا حاب تعرف إذا فيه قروب جديد."
         );
 
-      // Row 1 – Group study (primary)
+      // Row 1 – Group study (25min and 50min)
       const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId("study_queue")
-          .setLabel("Join Group Queue")
+          .setCustomId("study_queue_25")
+          .setLabel("Join 25min Group")
+          .setEmoji("👥")
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId("study_queue_50")
+          .setLabel("Join 50min Group")
           .setEmoji("👥")
           .setStyle(ButtonStyle.Primary)
       );
 
-      // Row 2 – Solo timer (low key)
+      // Row 2 – Solo timers (25min and 50min)
       const row2 = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId("study_solo")
-          .setLabel("Quick Solo Timer")
-          .setEmoji("⏱️")
+          .setCustomId("study_solo_25")
+          .setLabel("Solo 25min")
+          .setEmoji("🍅")
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId("study_solo_50")
+          .setLabel("Solo 50min")
+          .setEmoji("🍅")
           .setStyle(ButtonStyle.Secondary)
       );
 
@@ -254,14 +281,14 @@ export function setupStudySystem(client) {
         // Get user's session stats
         const stats = studyStatsStore.getUserStats(userId, guildId);
 
-        // Add to eligible users with their session count (tickets = 1 base + sessions)
+        // Add to eligible users with their ticket count (tickets = 1 base + hours × 10)
         eligibleUsers.push({
           userId,
           username: member.user.username,
           displayName: member.displayName || member.user.username,
           sessions: stats.totalSessions,
           hours: stats.totalHours,
-          tickets: 1 + stats.totalSessions // 1 base ticket for having both roles + sessions
+          tickets: 1 + Math.round(stats.totalHours * 10) // 1 base ticket for having both roles + (hours × 10)
         });
       }
 
@@ -302,7 +329,7 @@ export function setupStudySystem(client) {
           `🎫 Total Tickets: ${totalTickets}\n` +
           `📊 Win Chance: ${((winner.tickets / totalTickets) * 100).toFixed(2)}%`
         )
-        .setFooter({ text: "More sessions = More chances to win!" })
+        .setFooter({ text: "More study time = More chances to win!" })
         .setTimestamp();
 
       // Send announcement
@@ -458,7 +485,7 @@ export function setupStudySystem(client) {
 /**
  * Handle solo Pomodoro button click
  */
-async function handleSoloPomodoro(interaction, client) {
+async function handleSoloPomodoro(interaction, client, duration) {
   await interaction.deferReply({ ephemeral: true });
 
   // Auto-assign study role
@@ -468,34 +495,37 @@ async function handleSoloPomodoro(interaction, client) {
   const user = interaction.user;
   const username = interaction.member.displayName || user.username;
 
-  // Remove user from queue if they're in it
-  if (state.groupQueue.has(user.id)) {
-    state.groupQueue.delete(user.id);
-    const queueSize = state.groupQueue.size;
+  // Remove user from both queues if they're in any
+  for (const dur of [25, 50]) {
+    if (state.groupQueues[dur].has(user.id)) {
+      state.groupQueues[dur].delete(user.id);
+      const queueSize = state.groupQueues[dur].size;
 
-    // If queue is now empty, clear timeout
-    if (queueSize === 0) {
-      if (state.queueTimeout) {
-        clearTimeout(state.queueTimeout);
-        state.queueTimeout = null;
+      // If queue is now empty, clear timeout
+      if (queueSize === 0) {
+        if (state.queueTimeouts[dur]) {
+          clearTimeout(state.queueTimeouts[dur]);
+          state.queueTimeouts[dur] = null;
+        }
+        state.queueGuilds[dur] = null;
+        state.queueChannels[dur] = null;
+        console.log(`[Study] ${dur}min queue emptied (user started solo session), timeout cleared`);
+      } else {
+        console.log(`[Study] User removed from ${dur}min queue to start solo session. Queue size: ${queueSize}`);
       }
-      state.queueGuild = null;
-      state.queueChannel = null;
-      console.log("[Study] Queue emptied (user started solo session), timeout cleared");
-    } else {
-      console.log(`[Study] User removed from queue to start solo session. Queue size: ${queueSize}`);
-    }
 
-    // Persist state
-    sessionStateStore.saveState(state).catch(err =>
-      console.error('[Study] Failed to save state after removing from queue:', err)
-    );
+      // Persist state
+      sessionStateStore.saveState(state).catch(err =>
+        console.error('[Study] Failed to save state after removing from queue:', err)
+      );
+      break; // User can only be in one queue
+    }
   }
 
   try {
     // Create voice channel
     const vcOptions = {
-      name: `Study – Solo – ${username}`,
+      name: `Study – Solo ${duration}min – ${username}`,
       type: ChannelType.GuildVoice,
     };
 
@@ -506,7 +536,7 @@ async function handleSoloPomodoro(interaction, client) {
     const vc = await guild.channels.create(vcOptions);
 
     // Create session
-    const session = createSession("solo", guild.id, vc.id, interaction.channel.id, user.id);
+    const session = createSession("solo", guild.id, vc.id, interaction.channel.id, user.id, duration);
 
     // Move user to the voice channel if they're in one
     const member = interaction.member;
@@ -515,13 +545,13 @@ async function handleSoloPomodoro(interaction, client) {
       try {
         await member.voice.setChannel(vc);
         movedUser = true;
-        console.log(`[Study] Moved ${username} into solo session VC`);
+        console.log(`[Study] Moved ${username} into solo ${duration}min session VC`);
       } catch (error) {
         console.error(`[Study] Failed to move user to VC:`, error.message);
       }
     }
 
-    // Start 25-minute timer
+    // Start timer
     startPomodoroTimer(session, client);
 
     // Log session start
@@ -531,7 +561,7 @@ async function handleSoloPomodoro(interaction, client) {
       .addFields(
         { name: "User", value: `<@${user.id}>`, inline: true },
         { name: "Session ID", value: `#${session.id}`, inline: true },
-        { name: "Duration", value: "25 minutes", inline: true },
+        { name: "Duration", value: `${duration} minutes`, inline: true },
         { name: "Voice Channel", value: `<#${vc.id}>`, inline: false }
       )
       .setTimestamp();
@@ -540,11 +570,11 @@ async function handleSoloPomodoro(interaction, client) {
     // Reply with jump link
     await interaction.editReply({
       content: movedUser
-        ? `✅ **Solo session created!**\n\n⏱️ 25-minute timer started. Good luck!`
-        : `✅ **Solo session created!**\n\nClick to join: <#${vc.id}>\n\n⏱️ 25-minute timer started. Good luck!`,
+        ? `✅ **Solo ${duration}min session created!**\n\n⏱️ Timer started. Good luck!`
+        : `✅ **Solo ${duration}min session created!**\n\nClick to join: <#${vc.id}>\n\n⏱️ Timer started. Good luck!`,
     });
 
-    console.log(`[Study] Solo session created for ${username}`);
+    console.log(`[Study] Solo ${duration}min session created for ${username}`);
   } catch (error) {
     console.error("[Study] Error creating solo session:", error);
     await interaction.editReply({
@@ -556,7 +586,7 @@ async function handleSoloPomodoro(interaction, client) {
 /**
  * Handle group queue button click
  */
-async function handleGroupQueue(interaction, client) {
+async function handleGroupQueue(interaction, client, duration) {
   await interaction.deferReply({ ephemeral: true });
 
   // Auto-assign study role
@@ -564,25 +594,27 @@ async function handleGroupQueue(interaction, client) {
 
   const userId = interaction.user.id;
 
-  // Check if already in queue
-  if (state.groupQueue.has(userId)) {
-    return interaction.editReply({
-      content: "You're already in the queue!",
-    });
+  // Check if already in any queue
+  for (const dur of [25, 50]) {
+    if (state.groupQueues[dur].has(userId)) {
+      return interaction.editReply({
+        content: `You're already in the ${dur}min group queue!`,
+      });
+    }
   }
 
   // Cancel any active solo session for this user
   for (const [vcId, session] of state.activeSessions) {
     if (session.type === "solo" && session.creatorId === userId) {
-      console.log(`[Study] Canceling user's solo session ${session.id} (joining group queue)`);
-      await cancelSession(session, client, "User joined group queue");
+      console.log(`[Study] Canceling user's solo session ${session.id} (joining ${duration}min group queue)`);
+      await cancelSession(session, client, `User joined ${duration}min group queue`);
       break; // User can only have one solo session
     }
   }
 
-  // Add to queue
-  state.groupQueue.add(userId);
-  const queueSize = state.groupQueue.size;
+  // Add to the specific duration queue
+  state.groupQueues[duration].add(userId);
+  const queueSize = state.groupQueues[duration].size;
 
   // Persist state
   sessionStateStore.saveState(state).catch(err =>
@@ -591,35 +623,35 @@ async function handleGroupQueue(interaction, client) {
 
   // Start timeout if this is the first person
   if (queueSize === 1) {
-    state.queueGuild = interaction.guild;
-    state.queueChannel = interaction.channel;
+    state.queueGuilds[duration] = interaction.guild;
+    state.queueChannels[duration] = interaction.channel;
 
-    state.queueTimeout = setTimeout(async () => {
+    state.queueTimeouts[duration] = setTimeout(async () => {
       try {
-        if (state.groupQueue.size > 0) {
+        if (state.groupQueues[duration].size > 0) {
           await interaction.channel.send({
-            content: `⏰ Queue timeout! Starting session with ${state.groupQueue.size} ${state.groupQueue.size === 1 ? 'person' : 'people'}...`
+            content: `⏰ ${duration}min queue timeout! Starting session with ${state.groupQueues[duration].size} ${state.groupQueues[duration].size === 1 ? 'person' : 'people'}...`
           });
-          await startGroupSession(interaction.guild, interaction.channel, client);
+          await startGroupSession(interaction.guild, interaction.channel, client, duration);
         }
       } catch (error) {
-        console.error('[Study] Queue timeout error:', error);
+        console.error(`[Study] ${duration}min queue timeout error:`, error);
       }
     }, QUEUE_TIMEOUT_MS);
 
-    console.log(`[Study] Queue timeout started (${QUEUE_TIMEOUT_MS / 60000} minutes)`);
+    console.log(`[Study] ${duration}min queue timeout started (${QUEUE_TIMEOUT_MS / 60000} minutes)`);
   }
 
   await interaction.editReply({
-    content: `✅ Added to group queue!\n\n**Queue size:** ${queueSize}/${GROUP_QUEUE_THRESHOLD}\n\n${queueSize === 1 ? `⏰ Session will auto-start in ${QUEUE_TIMEOUT_MS / 60000} minutes if not full` : ''}`,
+    content: `✅ Added to ${duration}min group queue!\n\n**Queue size:** ${queueSize}/${GROUP_QUEUE_THRESHOLD}\n\n${queueSize === 1 ? `⏰ Session will auto-start in ${QUEUE_TIMEOUT_MS / 60000} minutes if not full` : ''}`,
   });
 
   // Announce in channel with role ping (if not full yet)
   if (queueSize < GROUP_QUEUE_THRESHOLD) {
     const rolePing = STUDY_ROLE_ID ? `<@&${STUDY_ROLE_ID}>` : "";
     const announcement = rolePing
-      ? `${rolePing} 👥 <@${userId}> joined the study queue! **(${queueSize}/${GROUP_QUEUE_THRESHOLD})**\n\nJoin now to start a group session!`
-      : `👥 <@${userId}> joined the study queue (${queueSize}/${GROUP_QUEUE_THRESHOLD})`;
+      ? `${rolePing} 👥 <@${userId}> joined the ${duration}min study queue! **(${queueSize}/${GROUP_QUEUE_THRESHOLD})**\n\nJoin now to start a group session!`
+      : `👥 <@${userId}> joined the ${duration}min study queue (${queueSize}/${GROUP_QUEUE_THRESHOLD})`;
 
     try {
       await interaction.channel.send({
@@ -634,7 +666,7 @@ async function handleGroupQueue(interaction, client) {
       if (error.code === 50013) {
         console.warn('[Study] Missing permission to mention role, sending without role ping');
         await interaction.channel.send({
-          content: `👥 <@${userId}> joined the study queue! **(${queueSize}/${GROUP_QUEUE_THRESHOLD})**\n\nJoin now to start a group session!`,
+          content: `👥 <@${userId}> joined the ${duration}min study queue! **(${queueSize}/${GROUP_QUEUE_THRESHOLD})**\n\nJoin now to start a group session!`,
           allowedMentions: { users: [userId] }
         });
       } else {
@@ -646,11 +678,11 @@ async function handleGroupQueue(interaction, client) {
   // Start session if threshold reached
   if (queueSize >= GROUP_QUEUE_THRESHOLD) {
     // Clear timeout since we're starting now
-    if (state.queueTimeout) {
-      clearTimeout(state.queueTimeout);
-      state.queueTimeout = null;
+    if (state.queueTimeouts[duration]) {
+      clearTimeout(state.queueTimeouts[duration]);
+      state.queueTimeouts[duration] = null;
     }
-    await startGroupSession(interaction.guild, interaction.channel, client);
+    await startGroupSession(interaction.guild, interaction.channel, client, duration);
   }
 }
 
@@ -684,11 +716,11 @@ async function handleShowStats(interaction) {
 /**
  * Start a group session when queue threshold is reached
  */
-async function startGroupSession(guild, textChannel, client) {
+async function startGroupSession(guild, textChannel, client, duration) {
   try {
     // Create group VC
     const vcOptions = {
-      name: "Study – Pomodoro Group",
+      name: `Study – Group ${duration}min`,
       type: ChannelType.GuildVoice,
     };
 
@@ -699,25 +731,25 @@ async function startGroupSession(guild, textChannel, client) {
     const vc = await guild.channels.create(vcOptions);
 
     // Create session
-    const session = createSession("group", guild.id, vc.id, textChannel.id, null);
+    const session = createSession("group", guild.id, vc.id, textChannel.id, null, duration);
 
-    // Set active group session
-    state.activeGroupSession = {
+    // Set active group session for this duration
+    state.activeGroupSessions[duration] = {
       voiceChannelId: vc.id,
       textChannelId: textChannel.id
     };
 
-    // Get queued users
-    const queuedUsers = Array.from(state.groupQueue);
+    // Get queued users for this duration
+    const queuedUsers = Array.from(state.groupQueues[duration]);
 
-    // Clear queue and timeout
-    state.groupQueue.clear();
-    if (state.queueTimeout) {
-      clearTimeout(state.queueTimeout);
-      state.queueTimeout = null;
+    // Clear queue and timeout for this duration
+    state.groupQueues[duration].clear();
+    if (state.queueTimeouts[duration]) {
+      clearTimeout(state.queueTimeouts[duration]);
+      state.queueTimeouts[duration] = null;
     }
-    state.queueGuild = null;
-    state.queueChannel = null;
+    state.queueGuilds[duration] = null;
+    state.queueChannels[duration] = null;
 
     // Persist state (queue cleared and active group session set)
     sessionStateStore.saveState(state).catch(err =>
@@ -732,7 +764,7 @@ async function startGroupSession(guild, textChannel, client) {
         if (member.voice.channel) {
           await member.voice.setChannel(vc);
           movedCount++;
-          console.log(`[Study] Moved ${member.displayName || member.user.username} into group session`);
+          console.log(`[Study] Moved ${member.displayName || member.user.username} into ${duration}min group session`);
         }
       } catch (error) {
         console.error(`[Study] Failed to move user ${userId} to group VC:`, error.message);
@@ -742,8 +774,8 @@ async function startGroupSession(guild, textChannel, client) {
     // Announce
     const mentions = queuedUsers.map(id => `<@${id}>`).join(", ");
     const announceContent = movedCount === queuedUsers.length
-      ? `🎉 **Group Pomodoro starting!**\n\n${mentions}\n\n⏱️ 25-minute session begins now!`
-      : `🎉 **Group Pomodoro starting!**\n\n${mentions}\n\nJoin the channel: <#${vc.id}>\n⏱️ 25-minute session begins now!`;
+      ? `🎉 **Group ${duration}min Pomodoro starting!**\n\n${mentions}\n\n⏱️ ${duration}-minute session begins now!`
+      : `🎉 **Group ${duration}min Pomodoro starting!**\n\n${mentions}\n\nJoin the channel: <#${vc.id}>\n⏱️ ${duration}-minute session begins now!`;
 
     await textChannel.send({
       content: announceContent,
@@ -760,14 +792,14 @@ async function startGroupSession(guild, textChannel, client) {
       .addFields(
         { name: "Participants", value: `${queuedUsers.length}`, inline: true },
         { name: "Session ID", value: `#${session.id}`, inline: true },
-        { name: "Duration", value: "25 minutes", inline: true },
+        { name: "Duration", value: `${duration} minutes`, inline: true },
         { name: "Voice Channel", value: `<#${vc.id}>`, inline: false },
         { name: "Users", value: mentions, inline: false }
       )
       .setTimestamp();
     await logToChannel(client, guild.id, startEmbed);
 
-    console.log(`[Study] Group session started with ${queuedUsers.length} users`);
+    console.log(`[Study] Group ${duration}min session started with ${queuedUsers.length} users`);
   } catch (error) {
     console.error("[Study] Error starting group session:", error);
   }
@@ -776,7 +808,7 @@ async function startGroupSession(guild, textChannel, client) {
 /**
  * Create a new study session
  */
-function createSession(type, guildId, vcId, textId, creatorId) {
+function createSession(type, guildId, vcId, textId, creatorId, duration) {
   const id = ++state.sessionCounter;
   const session = {
     id,
@@ -785,6 +817,7 @@ function createSession(type, guildId, vcId, textId, creatorId) {
     voiceChannelId: vcId,
     textChannelId: textId,
     creatorId, // Only for solo sessions
+    duration, // Duration in minutes (25 or 50)
     startedAt: Date.now(),
     timer: null,
     emptyTimeout: null,
@@ -830,15 +863,16 @@ async function setVoiceChannelMute(client, session, shouldMute) {
 }
 
 /**
- * Start 25-minute Pomodoro timer
+ * Start Pomodoro timer based on session duration
  */
 async function startPomodoroTimer(session, client) {
   // Mute all members in the voice channel
   await setVoiceChannelMute(client, session, true);
 
+  const focusMs = session.duration * 60 * 1000; // Convert minutes to milliseconds
   session.timer = setTimeout(async () => {
     await completeSession(session, client);
-  }, FOCUS_MS);
+  }, focusMs);
 }
 
 /**
@@ -867,8 +901,11 @@ async function completeSession(session, client) {
     if (participantCount > 0) {
       // Log completion for each participant
       for (const [userId] of participants) {
-        await studyStatsStore.recordSession(userId, session.guildId, 25);
+        await studyStatsStore.recordSession(userId, session.guildId, session.duration);
       }
+
+      // Calculate break time (1/5 of session duration)
+      const breakMinutes = Math.round(session.duration / 5);
 
       // Send DM to each participant about break time
       for (const [userId, member] of participants) {
@@ -877,9 +914,9 @@ async function completeSession(session, client) {
             .setTitle("🎉 Study Session Complete!")
             .setColor(0x57F287)
             .setDescription(
-              `Great job on completing your **25-minute** study session!\n\n` +
+              `Great job on completing your **${session.duration}-minute** study session!\n\n` +
               `🧘 **Time for a break!**\n` +
-              `Take 5-10 minutes to rest, stretch, or grab a snack.\n\n` +
+              `Take ${breakMinutes} minutes to rest, stretch, or grab a snack.\n\n` +
               `You've earned it! 💪`
             )
             .setTimestamp();
@@ -898,7 +935,7 @@ async function completeSession(session, client) {
         .setTitle("✅ Study Session Completed")
         .setColor(0x57F287)
         .setDescription(
-          `**Duration:** 25 minutes\n` +
+          `**Duration:** ${session.duration} minutes\n` +
           `**Participants:** ${participantCount}\n\n` +
           `${mentions}\n\n` +
           `Great work! 🎉`
@@ -909,7 +946,7 @@ async function completeSession(session, client) {
         await textChannel.send({ embeds: [embed] });
       }
 
-      console.log(`[Study] Session ${session.id} completed with ${participantCount} participants`);
+      console.log(`[Study] Session ${session.id} (${session.duration}min) completed with ${participantCount} participants`);
 
       // Log completion to log channel
       const logEmbed = new EmbedBuilder()
@@ -919,7 +956,7 @@ async function completeSession(session, client) {
           { name: "Session ID", value: `#${session.id}`, inline: true },
           { name: "Type", value: session.type === "solo" ? "Solo" : "Group", inline: true },
           { name: "Participants", value: `${participantCount}`, inline: true },
-          { name: "Duration", value: "25 minutes", inline: true },
+          { name: "Duration", value: `${session.duration} minutes`, inline: true },
           { name: "Users", value: mentions, inline: false }
         )
         .setTimestamp();
@@ -949,8 +986,10 @@ async function completeSession(session, client) {
     state.activeSessions.delete(session.voiceChannelId);
 
     // Clear active group session if this was a group session
-    if (session.type === "group" && state.activeGroupSession?.voiceChannelId === session.voiceChannelId) {
-      state.activeGroupSession = null;
+    if (session.type === "group" && session.duration) {
+      if (state.activeGroupSessions[session.duration]?.voiceChannelId === session.voiceChannelId) {
+        state.activeGroupSessions[session.duration] = null;
+      }
     }
 
     // Persist state
@@ -1007,8 +1046,10 @@ async function cancelSession(session, client, reason) {
     state.activeSessions.delete(session.voiceChannelId);
 
     // Clear active group session if this was a group session
-    if (session.type === "group" && state.activeGroupSession?.voiceChannelId === session.voiceChannelId) {
-      state.activeGroupSession = null;
+    if (session.type === "group" && session.duration) {
+      if (state.activeGroupSessions[session.duration]?.voiceChannelId === session.voiceChannelId) {
+        state.activeGroupSessions[session.duration] = null;
+      }
     }
 
     // Persist state
@@ -1052,26 +1093,35 @@ async function handleQueueLeave(interaction) {
 
   const userId = interaction.user.id;
 
-  // Check if in queue
-  if (!state.groupQueue.has(userId)) {
+  // Check which queue the user is in
+  let foundInQueue = null;
+  for (const dur of [25, 50]) {
+    if (state.groupQueues[dur].has(userId)) {
+      foundInQueue = dur;
+      break;
+    }
+  }
+
+  // Check if in any queue
+  if (!foundInQueue) {
     return interaction.editReply({
-      content: "You're not in the queue.",
+      content: "You're not in any queue.",
     });
   }
 
-  // Remove from queue
-  state.groupQueue.delete(userId);
-  const queueSize = state.groupQueue.size;
+  // Remove from the specific queue
+  state.groupQueues[foundInQueue].delete(userId);
+  const queueSize = state.groupQueues[foundInQueue].size;
 
   // If queue is now empty, clear timeout
   if (queueSize === 0) {
-    if (state.queueTimeout) {
-      clearTimeout(state.queueTimeout);
-      state.queueTimeout = null;
+    if (state.queueTimeouts[foundInQueue]) {
+      clearTimeout(state.queueTimeouts[foundInQueue]);
+      state.queueTimeouts[foundInQueue] = null;
     }
-    state.queueGuild = null;
-    state.queueChannel = null;
-    console.log("[Study] Queue emptied, timeout cleared");
+    state.queueGuilds[foundInQueue] = null;
+    state.queueChannels[foundInQueue] = null;
+    console.log(`[Study] ${foundInQueue}min queue emptied, timeout cleared`);
   }
 
   // Persist state
@@ -1080,13 +1130,13 @@ async function handleQueueLeave(interaction) {
   );
 
   await interaction.editReply({
-    content: `✅ Removed from queue.\n\n${queueSize > 0 ? `**Queue size:** ${queueSize}/${GROUP_QUEUE_THRESHOLD}` : 'Queue is now empty.'}`,
+    content: `✅ Removed from ${foundInQueue}min queue.\n\n${queueSize > 0 ? `**Queue size:** ${queueSize}/${GROUP_QUEUE_THRESHOLD}` : 'Queue is now empty.'}`,
   });
 
   // Announce if queue still has people
   if (queueSize > 0) {
     await interaction.channel.send({
-      content: `👋 <@${userId}> left the study queue (${queueSize}/${GROUP_QUEUE_THRESHOLD})`,
+      content: `👋 <@${userId}> left the ${foundInQueue}min study queue (${queueSize}/${GROUP_QUEUE_THRESHOLD})`,
       allowedMentions: { users: [userId] }
     });
   }
@@ -1260,9 +1310,13 @@ export async function recoverSessions(client) {
         continue;
       }
 
+      // Use default duration if not set (backward compatibility)
+      const sessionDuration = session.duration || 25;
+      const focusMs = sessionDuration * 60 * 1000;
+
       // Check how much time has elapsed
       const elapsed = Date.now() - session.startedAt;
-      const remaining = FOCUS_MS - elapsed;
+      const remaining = focusMs - elapsed;
 
       // If session should have already completed
       if (remaining <= 0) {
@@ -1283,7 +1337,7 @@ export async function recoverSessions(client) {
       }
 
       // Restart the timer for the remaining time
-      console.log(`[Study] Session ${session.id}: Recovering with ${Math.round(remaining / 1000)}s remaining`);
+      console.log(`[Study] Session ${session.id} (${sessionDuration}min): Recovering with ${Math.round(remaining / 1000)}s remaining`);
       session.timer = setTimeout(async () => {
         await completeSession(session, client);
       }, remaining);
@@ -1303,8 +1357,10 @@ export async function recoverSessions(client) {
   console.log(`[Study] Recovery complete: ${recoveredCount} sessions recovered, ${cleanedCount} cleaned up`);
 
   // Log queue status
-  if (state.groupQueue.size > 0) {
-    console.log(`[Study] Recovered queue with ${state.groupQueue.size} users (timeout not restarted - users should re-join)`);
+  for (const dur of [25, 50]) {
+    if (state.groupQueues[dur]?.size > 0) {
+      console.log(`[Study] Recovered ${dur}min queue with ${state.groupQueues[dur].size} users (timeout not restarted - users should re-join)`);
+    }
   }
 
   // Save the cleaned-up state
