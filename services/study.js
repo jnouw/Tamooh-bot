@@ -1,5 +1,6 @@
 import Discord from "discord.js";
 import { studyStatsStore } from "./StudyStatsStore.js";
+import { sessionStateStore } from "./SessionStateStore.js";
 
 const {
   Events,
@@ -105,10 +106,10 @@ export function setupStudySystem(client) {
 
           "👥 **الدراسة مع الطموحين‎‎‎**\n" +
           "**Join Group Queue**\n" +
-          "سجل انك تبي تدرس مع قروب، وإذا صرتوا 3 يسوي روم ويبدأ التايمر.\n\n\n" +
+          "سجل انك تبي تدرس مع قروب، وإذا صرتوا 3 يسوي روم ويبدأ التايمر.\n\n" +
 
-          "**Join Active Group**\n" +
-          "ادخل على قروب بادي.\n\n\n" +
+          "⏱️ **Solo Timer**\n" +
+          "ابدأ جلسة دراسة فردية لمدة 25 دقيقة.\n\n" +
 
           "🧭 **خيارات إضافية**\n" +
           "**View My Progress**\n" +
@@ -124,11 +125,6 @@ export function setupStudySystem(client) {
           .setCustomId("study_queue")
           .setLabel("Join Group Queue")
           .setEmoji("👥")
-          .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-          .setCustomId("study_join_active")
-          .setLabel("Join Ongoing Group")
-          .setEmoji("🟢")
           .setStyle(ButtonStyle.Primary)
       );
 
@@ -489,6 +485,11 @@ async function handleSoloPomodoro(interaction, client) {
     } else {
       console.log(`[Study] User removed from queue to start solo session. Queue size: ${queueSize}`);
     }
+
+    // Persist state
+    sessionStateStore.saveState(state).catch(err =>
+      console.error('[Study] Failed to save state after removing from queue:', err)
+    );
   }
 
   try {
@@ -583,6 +584,11 @@ async function handleGroupQueue(interaction, client) {
   state.groupQueue.add(userId);
   const queueSize = state.groupQueue.size;
 
+  // Persist state
+  sessionStateStore.saveState(state).catch(err =>
+    console.error('[Study] Failed to save state after adding to queue:', err)
+  );
+
   // Start timeout if this is the first person
   if (queueSize === 1) {
     state.queueGuild = interaction.guild;
@@ -649,57 +655,6 @@ async function handleGroupQueue(interaction, client) {
 }
 
 /**
- * Handle join active group button click
- */
-async function handleJoinActive(interaction, client) {
-  await interaction.deferReply({ ephemeral: true });
-
-  // Auto-assign study role
-  await autoAssignStudyRole(interaction.member);
-
-  if (!state.activeGroupSession) {
-    return interaction.editReply({
-      content: "No active group session right now. Use **Join Group Queue** to start one!",
-    });
-  }
-
-  const userId = interaction.user.id;
-
-  // Cancel any active solo session for this user
-  for (const [vcId, session] of state.activeSessions) {
-    if (session.type === "solo" && session.creatorId === userId) {
-      console.log(`[Study] Canceling user's solo session ${session.id} (joining active group)`);
-      await cancelSession(session, client, "User joined active group");
-      break; // User can only have one solo session
-    }
-  }
-
-  const vcId = state.activeGroupSession.voiceChannelId;
-  const member = interaction.member;
-  let movedUser = false;
-
-  // Move user to the group voice channel if they're in one
-  if (member.voice.channel) {
-    try {
-      const vc = interaction.guild.channels.cache.get(vcId);
-      if (vc) {
-        await member.voice.setChannel(vc);
-        movedUser = true;
-        console.log(`[Study] Moved ${member.displayName || member.user.username} into active group session`);
-      }
-    } catch (error) {
-      console.error(`[Study] Failed to move user to group VC:`, error.message);
-    }
-  }
-
-  await interaction.editReply({
-    content: movedUser
-      ? `🚀 **Joined the active group session!**\n\n⏱️ Good luck!`
-      : `🚀 **Join the active group session:**\n\n<#${vcId}>`,
-  });
-}
-
-/**
  * Handle show stats button click
  */
 async function handleShowStats(interaction) {
@@ -763,6 +718,11 @@ async function startGroupSession(guild, textChannel, client) {
     }
     state.queueGuild = null;
     state.queueChannel = null;
+
+    // Persist state (queue cleared and active group session set)
+    sessionStateStore.saveState(state).catch(err =>
+      console.error('[Study] Failed to save state after starting group session:', err)
+    );
 
     // Move queued users who are in voice channels
     let movedCount = 0;
@@ -832,6 +792,12 @@ function createSession(type, guildId, vcId, textId, creatorId) {
   };
 
   state.activeSessions.set(vcId, session);
+
+  // Persist state
+  sessionStateStore.saveState(state).catch(err =>
+    console.error('[Study] Failed to save state after creating session:', err)
+  );
+
   return session;
 }
 
@@ -987,6 +953,11 @@ async function completeSession(session, client) {
       state.activeGroupSession = null;
     }
 
+    // Persist state
+    sessionStateStore.saveState(state).catch(err =>
+      console.error('[Study] Failed to save state after completing session:', err)
+    );
+
     // Delete VC after delay
     setTimeout(async () => {
       try {
@@ -1039,6 +1010,11 @@ async function cancelSession(session, client, reason) {
     if (session.type === "group" && state.activeGroupSession?.voiceChannelId === session.voiceChannelId) {
       state.activeGroupSession = null;
     }
+
+    // Persist state
+    sessionStateStore.saveState(state).catch(err =>
+      console.error('[Study] Failed to save state after canceling session:', err)
+    );
 
     // Delete VC immediately
     const guild = client.guilds.cache.get(session.guildId);
@@ -1097,6 +1073,11 @@ async function handleQueueLeave(interaction) {
     state.queueChannel = null;
     console.log("[Study] Queue emptied, timeout cleared");
   }
+
+  // Persist state
+  sessionStateStore.saveState(state).catch(err =>
+    console.error('[Study] Failed to save state after removing from queue:', err)
+  );
 
   await interaction.editReply({
     content: `✅ Removed from queue.\n\n${queueSize > 0 ? `**Queue size:** ${queueSize}/${GROUP_QUEUE_THRESHOLD}` : 'Queue is now empty.'}`,
@@ -1239,12 +1220,103 @@ async function handleStudyGroupJoin(interaction) {
 }
 
 /**
+ * Recover sessions from persistent storage after bot restart
+ * This function should be called once when the bot starts
+ */
+export async function recoverSessions(client) {
+  console.log('[Study] Attempting to recover sessions from persistent storage...');
+
+  // Restore state from disk
+  const restored = sessionStateStore.restoreState(state);
+
+  if (!restored) {
+    console.log('[Study] No sessions to recover');
+    return;
+  }
+
+  // Check and recover each active session
+  const sessionsToRecover = Array.from(state.activeSessions.values());
+  let recoveredCount = 0;
+  let cleanedCount = 0;
+
+  for (const session of sessionsToRecover) {
+    try {
+      const guild = client.guilds.cache.get(session.guildId);
+      if (!guild) {
+        console.log(`[Study] Session ${session.id}: Guild not found, cleaning up`);
+        state.activeSessions.delete(session.voiceChannelId);
+        cleanedCount++;
+        continue;
+      }
+
+      const vc = guild.channels.cache.get(session.voiceChannelId);
+      if (!vc) {
+        console.log(`[Study] Session ${session.id}: Voice channel deleted, cleaning up`);
+        state.activeSessions.delete(session.voiceChannelId);
+        if (session.type === "group" && state.activeGroupSession?.voiceChannelId === session.voiceChannelId) {
+          state.activeGroupSession = null;
+        }
+        cleanedCount++;
+        continue;
+      }
+
+      // Check how much time has elapsed
+      const elapsed = Date.now() - session.startedAt;
+      const remaining = FOCUS_MS - elapsed;
+
+      // If session should have already completed
+      if (remaining <= 0) {
+        console.log(`[Study] Session ${session.id}: Timer already expired, completing now`);
+        await completeSession(session, client);
+        recoveredCount++;
+        continue;
+      }
+
+      // Check if there are any non-bot members in the voice channel
+      const memberCount = vc.members.filter(m => !m.user.bot).size;
+
+      if (memberCount === 0) {
+        console.log(`[Study] Session ${session.id}: Voice channel empty, canceling`);
+        await cancelSession(session, client, "Empty room after restart");
+        cleanedCount++;
+        continue;
+      }
+
+      // Restart the timer for the remaining time
+      console.log(`[Study] Session ${session.id}: Recovering with ${Math.round(remaining / 1000)}s remaining`);
+      session.timer = setTimeout(async () => {
+        await completeSession(session, client);
+      }, remaining);
+
+      // Mute all members (they should already be muted, but ensure it)
+      await setVoiceChannelMute(client, session, true);
+
+      recoveredCount++;
+    } catch (error) {
+      console.error(`[Study] Failed to recover session ${session.id}:`, error.message);
+      state.activeSessions.delete(session.voiceChannelId);
+      cleanedCount++;
+    }
+  }
+
+  // Log recovery summary
+  console.log(`[Study] Recovery complete: ${recoveredCount} sessions recovered, ${cleanedCount} cleaned up`);
+
+  // Log queue status
+  if (state.groupQueue.size > 0) {
+    console.log(`[Study] Recovered queue with ${state.groupQueue.size} users (timeout not restarted - users should re-join)`);
+  }
+
+  // Save the cleaned-up state
+  await sessionStateStore.saveState(state);
+}
+
+/**
  * Export button handlers for use in main button handler
  */
 export {
   handleSoloPomodoro,
   handleGroupQueue,
-  handleJoinActive,
   handleShowStats,
   handleQueueLeave,
   handleRoleAdd,

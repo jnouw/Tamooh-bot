@@ -28,7 +28,7 @@ import {
 } from "./utils/helpers.js";
 import { ScoreStore } from "./services/ScoreStore.js";
 import { sanitizeJavaCode } from "./utils/sanitize.js"; // NEW IMPORT
-import { setupStudySystem, handleSoloPomodoro, handleGroupQueue, handleJoinActive, handleShowStats, handleQueueLeave, handleRoleAdd, handleRoleRemove, handleStudyGroupJoin } from "./services/study.js"; // ✅ STUDY FEATURE
+import { setupStudySystem, handleSoloPomodoro, handleGroupQueue, handleShowStats, handleQueueLeave, handleRoleAdd, handleRoleRemove, handleStudyGroupJoin, recoverSessions } from "./services/study.js"; // ✅ STUDY FEATURE
 import { studyStatsStore } from "./services/StudyStatsStore.js"; // ✅ STUDY STATS
 
 // Initialize services
@@ -68,9 +68,17 @@ checkJavaAvailable().then((available) => {
   }
 });
 
-client.once("ready", () => {
+client.once("ready", async () => {
   logger.info(`Bot logged in as ${client.user.tag}`);
   console.log(`✅ Logged in as ${client.user.tag}`);
+
+  // Recover active study sessions from persistent storage
+  try {
+    await recoverSessions(client);
+  } catch (error) {
+    console.error('[Study] Failed to recover sessions:', error);
+    logger.error('Failed to recover sessions', { error: error.message });
+  }
 
   // Start health check if configured
   if (CONFIG.LOG_STATS && CONFIG.HEALTH_CHECK_INTERVAL_MS) {
@@ -357,9 +365,6 @@ async function handleButton(interaction) {
   }
   if (customId === "study_queue") {
     return await handleGroupQueue(interaction, interaction.client);
-  }
-  if (customId === "study_join_active") {
-    return await handleJoinActive(interaction, interaction.client);
   }
   if (customId === "study_stats") {
     return await handleShowStats(interaction);
