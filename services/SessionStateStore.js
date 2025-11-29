@@ -117,9 +117,12 @@ export class SessionStateStore {
         voiceChannelId: session.voiceChannelId,
         textChannelId: session.textChannelId,
         creatorId: session.creatorId,
-        duration: session.duration, // NEW: Save duration
+        duration: session.duration, // Save duration (25 or 50)
         startedAt: session.startedAt,
-        completed: session.completed
+        completed: session.completed,
+        phase: session.phase || "focus", // Save phase ("focus" or "break")
+        pomodoroCount: session.pomodoroCount || 0, // Save pomodoro count
+        username: session.username || null // Save username for solo sessions
       });
     }
 
