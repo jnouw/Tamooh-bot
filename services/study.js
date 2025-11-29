@@ -21,6 +21,7 @@ const TAMOOH_ROLE_ID = "1367043626806542336"; // Role ID for @طموح
 const OWNER_ID = "274462470674972682";
 
 const FOCUS_MS = 25 * 60 * 1000; // 25 minutes
+const BREAK_MS = 5 * 60 * 1000; // 5 minutes
 const EMPTY_TIMEOUT_MS = 60 * 1000; // 1 minute
 const DELETE_DELAY_MS = 60 * 1000; // 60 seconds after completion
 const GROUP_QUEUE_THRESHOLD = 3; // Number of users needed to start group session
@@ -119,17 +120,13 @@ export function setupStudySystem(client) {
           "فعّل التنبيهات إذا حاب تعرف إذا فيه قروب جديد."
         );
 
-      // Row 1 – Group study (primary)
+      // Row 1 – Join group + Quick solo
       const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId("study_queue")
           .setLabel("Join Group Queue")
           .setEmoji("👥")
-          .setStyle(ButtonStyle.Primary)
-      );
-
-      // Row 2 – Solo timer (low key)
-      const row2 = new ActionRowBuilder().addComponents(
+          .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
           .setCustomId("study_solo")
           .setLabel("Quick Solo Timer")
@@ -137,8 +134,13 @@ export function setupStudySystem(client) {
           .setStyle(ButtonStyle.Secondary)
       );
 
-      // Row 3 – Progress
-      const row3 = new ActionRowBuilder().addComponents(
+      // Row 2 – Leave queue + View progress
+      const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("study_queue_leave")
+          .setLabel("Leave Queue")
+          .setEmoji("🟥")
+          .setStyle(ButtonStyle.Danger),
         new ButtonBuilder()
           .setCustomId("study_stats")
           .setLabel("View My Progress")
@@ -146,8 +148,8 @@ export function setupStudySystem(client) {
           .setStyle(ButtonStyle.Secondary)
       );
 
-      // Row 4 – Notifications
-      const row4 = new ActionRowBuilder().addComponents(
+      // Row 3 – Notifications
+      const row3 = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId("study_role_add")
           .setLabel("Enable Notifications")
@@ -160,18 +162,9 @@ export function setupStudySystem(client) {
           .setStyle(ButtonStyle.Secondary)
       );
 
-      // Row 5 – Exit
-      const row5 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId("study_queue_leave")
-          .setLabel("Leave Queue")
-          .setEmoji("🟥")
-          .setStyle(ButtonStyle.Danger)
-      );
-
       await message.channel.send({
         embeds: [embed],
-        components: [row1, row2, row3, row4, row5],
+        components: [row1, row2, row3],
       });
 
       await message.reply("Study control message posted!");
@@ -507,6 +500,7 @@ async function handleSoloPomodoro(interaction, client) {
 
     // Create session
     const session = createSession("solo", guild.id, vc.id, interaction.channel.id, user.id);
+    session.username = username; // Store username for VC name updates
 
     // Move user to the voice channel if they're in one
     const member = interaction.member;
@@ -789,6 +783,9 @@ function createSession(type, guildId, vcId, textId, creatorId) {
     timer: null,
     emptyTimeout: null,
     completed: false,
+    phase: "focus", // "focus" or "break"
+    pomodoroCount: 0, // Number of completed focus sessions
+    username: null, // For solo sessions, store username
   };
 
   state.activeSessions.set(vcId, session);
@@ -799,6 +796,39 @@ function createSession(type, guildId, vcId, textId, creatorId) {
   );
 
   return session;
+}
+
+/**
+ * Update voice channel name based on session phase
+ */
+async function updateVoiceChannelName(client, session) {
+  try {
+    const guild = client.guilds.cache.get(session.guildId);
+    if (!guild) return;
+
+    const vc = guild.channels.cache.get(session.voiceChannelId);
+    if (!vc) return;
+
+    let newName;
+    if (session.type === "solo") {
+      if (session.phase === "focus") {
+        newName = `📚 Study – ${session.username} – Focus`;
+      } else {
+        newName = `☕ Break – ${session.username}`;
+      }
+    } else {
+      if (session.phase === "focus") {
+        newName = `📚 Study Group – Focus`;
+      } else {
+        newName = `☕ Group Break`;
+      }
+    }
+
+    await vc.setName(newName);
+    console.log(`[Study] Updated VC name to: ${newName}`);
+  } catch (error) {
+    console.error(`[Study] Failed to update VC name:`, error.message);
+  }
 }
 
 /**
@@ -833,22 +863,26 @@ async function setVoiceChannelMute(client, session, shouldMute) {
  * Start 25-minute Pomodoro timer
  */
 async function startPomodoroTimer(session, client) {
+  // Set phase to focus
+  session.phase = "focus";
+  session.startedAt = Date.now();
+
+  // Update VC name to show focus phase
+  await updateVoiceChannelName(client, session);
+
   // Mute all members in the voice channel
   await setVoiceChannelMute(client, session, true);
 
   session.timer = setTimeout(async () => {
-    await completeSession(session, client);
+    await completeFocusSession(session, client);
   }, FOCUS_MS);
 }
 
 /**
- * Complete a session successfully
+ * Complete a focus session and start break
  */
-async function completeSession(session, client) {
-  if (session.completed) return;
-  session.completed = true;
-
-  console.log(`[Study] Completing session ${session.id}`);
+async function completeFocusSession(session, client) {
+  console.log(`[Study] Completing focus session ${session.id}`);
 
   try {
     const guild = client.guilds.cache.get(session.guildId);
@@ -857,7 +891,7 @@ async function completeSession(session, client) {
     const vc = guild.channels.cache.get(session.voiceChannelId);
     const textChannel = guild.channels.cache.get(session.textChannelId);
 
-    // Unmute all members before completion
+    // Unmute all members
     await setVoiceChannelMute(client, session, false);
 
     // Get participants (non-bot members)
@@ -865,6 +899,9 @@ async function completeSession(session, client) {
     const participantCount = participants.size;
 
     if (participantCount > 0) {
+      // Increment pomodoro count
+      session.pomodoroCount++;
+
       // Log completion for each participant
       for (const [userId] of participants) {
         await studyStatsStore.recordSession(userId, session.guildId, 25);
@@ -878,9 +915,10 @@ async function completeSession(session, client) {
             .setColor(0x57F287)
             .setDescription(
               `Great job on completing your **25-minute** study session!\n\n` +
-              `🧘 **Time for a break!**\n` +
-              `Take 5-10 minutes to rest, stretch, or grab a snack.\n\n` +
-              `You've earned it! 💪`
+              `**Session #${session.pomodoroCount}** completed!\n\n` +
+              `☕ **Time for a 5-minute break!**\n` +
+              `Stretch, grab water, or rest your eyes.\n\n` +
+              `The next focus session will start automatically. 💪`
             )
             .setTimestamp();
 
@@ -895,13 +933,15 @@ async function completeSession(session, client) {
       // Post summary
       const mentions = Array.from(participants.keys()).map(id => `<@${id}>`).join(", ");
       const embed = new EmbedBuilder()
-        .setTitle("✅ Study Session Completed")
+        .setTitle("✅ Focus Session Completed")
         .setColor(0x57F287)
         .setDescription(
           `**Duration:** 25 minutes\n` +
+          `**Session:** #${session.pomodoroCount}\n` +
           `**Participants:** ${participantCount}\n\n` +
           `${mentions}\n\n` +
-          `Great work! 🎉`
+          `☕ **5-minute break starting now!**\n` +
+          `Next focus session starts automatically.`
         )
         .setTimestamp();
 
@@ -909,68 +949,145 @@ async function completeSession(session, client) {
         await textChannel.send({ embeds: [embed] });
       }
 
-      console.log(`[Study] Session ${session.id} completed with ${participantCount} participants`);
+      console.log(`[Study] Focus session ${session.id} completed (Pomodoro #${session.pomodoroCount}) with ${participantCount} participants`);
 
       // Log completion to log channel
       const logEmbed = new EmbedBuilder()
-        .setTitle("✅ Session Completed")
+        .setTitle("✅ Focus Session Completed")
         .setColor(0x57F287)
         .addFields(
           { name: "Session ID", value: `#${session.id}`, inline: true },
           { name: "Type", value: session.type === "solo" ? "Solo" : "Group", inline: true },
+          { name: "Pomodoro", value: `#${session.pomodoroCount}`, inline: true },
           { name: "Participants", value: `${participantCount}`, inline: true },
           { name: "Duration", value: "25 minutes", inline: true },
           { name: "Users", value: mentions, inline: false }
         )
         .setTimestamp();
       await logToChannel(client, session.guildId, logEmbed);
+
+      // Start break timer
+      await startBreakTimer(session, client);
     } else {
-      console.log(`[Study] Session ${session.id} completed with no participants`);
+      console.log(`[Study] Focus session ${session.id} completed with no participants - continuing anyway`);
+
+      // Still increment the counter
+      session.pomodoroCount++;
 
       // Log completion with no participants
       const logEmbed = new EmbedBuilder()
-        .setTitle("✅ Session Completed")
+        .setTitle("✅ Focus Session Completed")
         .setColor(0x95A5A6)
         .addFields(
           { name: "Session ID", value: `#${session.id}`, inline: true },
           { name: "Type", value: session.type === "solo" ? "Solo" : "Group", inline: true },
+          { name: "Pomodoro", value: `#${session.pomodoroCount}`, inline: true },
           { name: "Participants", value: "0", inline: true },
           { name: "Status", value: "No participants remained", inline: false }
         )
         .setTimestamp();
       await logToChannel(client, session.guildId, logEmbed);
-    }
 
-    // Clear timers
-    if (session.timer) clearTimeout(session.timer);
-    if (session.emptyTimeout) clearTimeout(session.emptyTimeout);
-
-    // Remove from active sessions
-    state.activeSessions.delete(session.voiceChannelId);
-
-    // Clear active group session if this was a group session
-    if (session.type === "group" && state.activeGroupSession?.voiceChannelId === session.voiceChannelId) {
-      state.activeGroupSession = null;
+      // Start break timer even with no participants
+      await startBreakTimer(session, client);
     }
 
     // Persist state
     sessionStateStore.saveState(state).catch(err =>
-      console.error('[Study] Failed to save state after completing session:', err)
+      console.error('[Study] Failed to save state after completing focus session:', err)
     );
 
-    // Delete VC after delay
-    setTimeout(async () => {
-      try {
-        if (vc) {
-          await vc.delete("Session completed");
+  } catch (error) {
+    console.error("[Study] Error completing focus session:", error);
+  }
+}
+
+/**
+ * Start 5-minute break timer
+ */
+async function startBreakTimer(session, client) {
+  // Clear the focus timer
+  if (session.timer) clearTimeout(session.timer);
+
+  // Set phase to break
+  session.phase = "break";
+  session.startedAt = Date.now();
+
+  // Update VC name to show break phase
+  await updateVoiceChannelName(client, session);
+
+  console.log(`[Study] Starting 5-minute break for session ${session.id}`);
+
+  session.timer = setTimeout(async () => {
+    await completeBreakSession(session, client);
+  }, BREAK_MS);
+
+  // Persist state
+  sessionStateStore.saveState(state).catch(err =>
+    console.error('[Study] Failed to save state after starting break:', err)
+  );
+}
+
+/**
+ * Complete break and start next focus session
+ */
+async function completeBreakSession(session, client) {
+  console.log(`[Study] Completing break for session ${session.id}, starting next focus session`);
+
+  try {
+    const guild = client.guilds.cache.get(session.guildId);
+    if (!guild) return;
+
+    const vc = guild.channels.cache.get(session.voiceChannelId);
+    const textChannel = guild.channels.cache.get(session.textChannelId);
+
+    // Get participants (non-bot members)
+    const participants = vc?.members.filter(m => !m.user.bot) || new Map();
+    const participantCount = participants.size;
+
+    if (participantCount > 0) {
+      // Send DM to each participant about next session
+      for (const [userId, member] of participants) {
+        try {
+          const dmEmbed = new EmbedBuilder()
+            .setTitle("📚 Break Complete!")
+            .setColor(0x5865F2)
+            .setDescription(
+              `Break time is over!\n\n` +
+              `**Next focus session (Session #${session.pomodoroCount + 1}) starting now!**\n\n` +
+              `Let's get back to work! 💪`
+            )
+            .setTimestamp();
+
+          await member.user.send({ embeds: [dmEmbed] });
+          console.log(`[Study] Sent next session DM to ${member.user.username}`);
+        } catch (error) {
+          console.log(`[Study] Could not send DM to ${member.user.username}: ${error.message}`);
         }
-      } catch (error) {
-        console.error("[Study] Error deleting VC:", error);
       }
-    }, DELETE_DELAY_MS);
+
+      // Post announcement
+      const mentions = Array.from(participants.keys()).map(id => `<@${id}>`).join(", ");
+      const embed = new EmbedBuilder()
+        .setTitle("📚 Next Focus Session Starting!")
+        .setColor(0x5865F2)
+        .setDescription(
+          `Break complete!\n\n` +
+          `${mentions}\n\n` +
+          `**Session #${session.pomodoroCount + 1}** starting now!`
+        )
+        .setTimestamp();
+
+      if (textChannel) {
+        await textChannel.send({ embeds: [embed] });
+      }
+    }
+
+    // Start next focus session
+    await startPomodoroTimer(session, client);
 
   } catch (error) {
-    console.error("[Study] Error completing session:", error);
+    console.error("[Study] Error completing break session:", error);
   }
 }
 
@@ -1262,12 +1379,17 @@ export async function recoverSessions(client) {
 
       // Check how much time has elapsed
       const elapsed = Date.now() - session.startedAt;
-      const remaining = FOCUS_MS - elapsed;
+      const phaseMs = session.phase === "break" ? BREAK_MS : FOCUS_MS;
+      const remaining = phaseMs - elapsed;
 
       // If session should have already completed
       if (remaining <= 0) {
-        console.log(`[Study] Session ${session.id}: Timer already expired, completing now`);
-        await completeSession(session, client);
+        console.log(`[Study] Session ${session.id}: Timer already expired for ${session.phase} phase, completing now`);
+        if (session.phase === "break") {
+          await completeBreakSession(session, client);
+        } else {
+          await completeFocusSession(session, client);
+        }
         recoveredCount++;
         continue;
       }
@@ -1283,13 +1405,22 @@ export async function recoverSessions(client) {
       }
 
       // Restart the timer for the remaining time
-      console.log(`[Study] Session ${session.id}: Recovering with ${Math.round(remaining / 1000)}s remaining`);
+      console.log(`[Study] Session ${session.id}: Recovering ${session.phase} phase with ${Math.round(remaining / 1000)}s remaining`);
       session.timer = setTimeout(async () => {
-        await completeSession(session, client);
+        if (session.phase === "break") {
+          await completeBreakSession(session, client);
+        } else {
+          await completeFocusSession(session, client);
+        }
       }, remaining);
 
-      // Mute all members (they should already be muted, but ensure it)
-      await setVoiceChannelMute(client, session, true);
+      // Mute all members if in focus phase (they should already be muted, but ensure it)
+      if (session.phase === "focus") {
+        await setVoiceChannelMute(client, session, true);
+      }
+
+      // Update VC name to reflect current phase
+      await updateVoiceChannelName(client, session);
 
       recoveredCount++;
     } catch (error) {
