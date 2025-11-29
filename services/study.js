@@ -1303,8 +1303,10 @@ export async function recoverSessions(client) {
       if (!vc) {
         console.log(`[Study] Session ${session.id}: Voice channel deleted, cleaning up`);
         state.activeSessions.delete(session.voiceChannelId);
-        if (session.type === "group" && state.activeGroupSession?.voiceChannelId === session.voiceChannelId) {
-          state.activeGroupSession = null;
+        if (session.type === "group" && session.duration) {
+          if (state.activeGroupSessions[session.duration]?.voiceChannelId === session.voiceChannelId) {
+            state.activeGroupSessions[session.duration] = null;
+          }
         }
         cleanedCount++;
         continue;
