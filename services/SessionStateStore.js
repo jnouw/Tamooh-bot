@@ -17,8 +17,14 @@ export class SessionStateStore {
     this.data = {
       sessionCounter: 0,
       activeSessions: [], // Array of session objects
-      groupQueue: [], // Array of user IDs
-      activeGroupSession: null // { voiceChannelId, textChannelId } or null
+      groupQueues: {
+        25: [], // Array of user IDs for 25min queue
+        50: []  // Array of user IDs for 50min queue
+      },
+      activeGroupSessions: {
+        25: null, // { voiceChannelId, textChannelId } or null
+        50: null  // { voiceChannelId, textChannelId } or null
+      }
     };
     this.saveQueue = Promise.resolve();
     this.pendingSave = false;
@@ -39,16 +45,45 @@ export class SessionStateStore {
     try {
       if (existsSync(this.file)) {
         const raw = await readFile(this.file, 'utf8');
-        this.data = JSON.parse(raw);
-        console.log(`[SessionState] Loaded state: ${this.data.activeSessions.length} sessions, ${this.data.groupQueue.length} queued users`);
+        const loaded = JSON.parse(raw);
+
+        // Backward compatibility: migrate old format to new
+        if (loaded.groupQueue && !loaded.groupQueues) {
+          // Old format detected
+          console.log('[SessionState] Migrating old state format to new multi-queue format');
+          this.data = {
+            sessionCounter: loaded.sessionCounter || 0,
+            activeSessions: loaded.activeSessions || [],
+            groupQueues: {
+              25: loaded.groupQueue || [], // Migrate old queue to 25min
+              50: []
+            },
+            activeGroupSessions: {
+              25: loaded.activeGroupSession || null, // Migrate old session to 25min
+              50: null
+            }
+          };
+        } else {
+          // New format
+          this.data = loaded;
+        }
+
+        const totalQueued = (this.data.groupQueues[25]?.length || 0) + (this.data.groupQueues[50]?.length || 0);
+        console.log(`[SessionState] Loaded state: ${this.data.activeSessions.length} sessions, ${totalQueued} queued users (${this.data.groupQueues[25]?.length || 0} in 25min, ${this.data.groupQueues[50]?.length || 0} in 50min)`);
       }
     } catch (error) {
       console.error('[SessionState] Failed to load:', error.message);
       this.data = {
         sessionCounter: 0,
         activeSessions: [],
-        groupQueue: [],
-        activeGroupSession: null
+        groupQueues: {
+          25: [],
+          50: []
+        },
+        activeGroupSessions: {
+          25: null,
+          50: null
+        }
       };
     }
   }
@@ -82,19 +117,26 @@ export class SessionStateStore {
         voiceChannelId: session.voiceChannelId,
         textChannelId: session.textChannelId,
         creatorId: session.creatorId,
+        duration: session.duration, // Save duration (25 or 50)
         startedAt: session.startedAt,
-        completed: session.completed
+        completed: session.completed,
+        phase: session.phase || "focus", // Save phase ("focus" or "break")
+        pomodoroCount: session.pomodoroCount || 0, // Save pomodoro count
+        username: session.username || null // Save username for solo sessions
       });
     }
 
-    // Convert Set to Array
-    const queueArray = Array.from(state.groupQueue);
+    // Convert Sets to Arrays for each duration
+    const groupQueues = {
+      25: Array.from(state.groupQueues[25] || new Set()),
+      50: Array.from(state.groupQueues[50] || new Set())
+    };
 
     this.data = {
       sessionCounter: state.sessionCounter,
       activeSessions: sessionsArray,
-      groupQueue: queueArray,
-      activeGroupSession: state.activeGroupSession
+      groupQueues: groupQueues,
+      activeGroupSessions: state.activeGroupSessions
     };
 
     await this.save();
@@ -106,9 +148,11 @@ export class SessionStateStore {
    * @returns {boolean} - True if state was restored, false if no state to restore
    */
   restoreState(state) {
-    if (this.data.activeSessions.length === 0 &&
-        this.data.groupQueue.length === 0 &&
-        !this.data.activeGroupSession) {
+    const hasActiveSessions = this.data.activeSessions.length > 0;
+    const hasQueuedUsers = (this.data.groupQueues[25]?.length || 0) + (this.data.groupQueues[50]?.length || 0) > 0;
+    const hasActiveGroupSessions = this.data.activeGroupSessions[25] || this.data.activeGroupSessions[50];
+
+    if (!hasActiveSessions && !hasQueuedUsers && !hasActiveGroupSessions) {
       console.log('[SessionState] No state to restore');
       return false;
     }
@@ -127,16 +171,23 @@ export class SessionStateStore {
       });
     }
 
-    // Restore group queue (convert Array back to Set)
-    state.groupQueue.clear();
-    for (const userId of this.data.groupQueue) {
-      state.groupQueue.add(userId);
+    // Restore group queues for each duration (convert Arrays back to Sets)
+    state.groupQueues[25].clear();
+    state.groupQueues[50].clear();
+
+    for (const userId of this.data.groupQueues[25] || []) {
+      state.groupQueues[25].add(userId);
+    }
+    for (const userId of this.data.groupQueues[50] || []) {
+      state.groupQueues[50].add(userId);
     }
 
-    // Restore active group session
-    state.activeGroupSession = this.data.activeGroupSession;
+    // Restore active group sessions
+    state.activeGroupSessions[25] = this.data.activeGroupSessions[25] || null;
+    state.activeGroupSessions[50] = this.data.activeGroupSessions[50] || null;
 
-    console.log(`[SessionState] Restored state: ${state.activeSessions.size} sessions, ${state.groupQueue.size} queued users`);
+    const totalQueued = state.groupQueues[25].size + state.groupQueues[50].size;
+    console.log(`[SessionState] Restored state: ${state.activeSessions.size} sessions, ${totalQueued} queued users (${state.groupQueues[25].size} in 25min, ${state.groupQueues[50].size} in 50min)`);
     return true;
   }
 
@@ -147,8 +198,14 @@ export class SessionStateStore {
     this.data = {
       sessionCounter: 0,
       activeSessions: [],
-      groupQueue: [],
-      activeGroupSession: null
+      groupQueues: {
+        25: [],
+        50: []
+      },
+      activeGroupSessions: {
+        25: null,
+        50: null
+      }
     };
     await this.save();
   }

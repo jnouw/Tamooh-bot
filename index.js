@@ -360,11 +360,17 @@ async function handleButton(interaction) {
   const customId = interaction.customId;
 
   // Study system buttons (no session ID needed)
-  if (customId === "study_solo") {
-    return await handleSoloPomodoro(interaction, interaction.client);
+  if (customId === "study_solo_25") {
+    return await handleSoloPomodoro(interaction, interaction.client, 25);
   }
-  if (customId === "study_queue") {
-    return await handleGroupQueue(interaction, interaction.client);
+  if (customId === "study_solo_50") {
+    return await handleSoloPomodoro(interaction, interaction.client, 50);
+  }
+  if (customId === "study_queue_25") {
+    return await handleGroupQueue(interaction, interaction.client, 25);
+  }
+  if (customId === "study_queue_50") {
+    return await handleGroupQueue(interaction, interaction.client, 50);
   }
   if (customId === "study_stats") {
     return await handleShowStats(interaction);
