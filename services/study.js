@@ -1270,7 +1270,7 @@ async function handleQueueLeave(interaction) {
 
   // Announce if queue still has people
   if (queueSize > 0) {
-    await interaction.channel.send({
+    const msg = await interaction.channel.send({
       content: `👋 <@${userId}> left the ${foundInQueue}min study queue (${queueSize}/${GROUP_QUEUE_THRESHOLD})`,
       allowedMentions: { users: [userId] }
     });
