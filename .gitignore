@@ -2,3 +2,6 @@ node_modules
 .env
 study_sessions.log
 
+data/backups/
+data/session_state.json
+data/study_stats.json
