@@ -420,15 +420,16 @@ export function setupStudySystem(client) {
         const vc = guild.channels.cache.get(channelId);
         if (!vc) continue;
 
-        // If someone joined this channel, mute them if session is active
+        // If someone joined this channel, mute them if session is in FOCUS phase
         if (newState.channelId === channelId && oldState.channelId !== channelId) {
           // User joined this channel
           const member = newState.member;
-          if (member && !member.user.bot && session.timer) {
-            // Session is active (timer is running), mute the new joiner
+          if (member && !member.user.bot && session.phase === "focus" && session.timer) {
+            // Session is in focus phase, mute the new joiner
             try {
               await member.voice.setMute(true);
-              console.log(`[Study] Muted ${member.user.username} who joined active session ${session.id}`);
+              session.mutedUsers.add(member.id);
+              console.log(`[Study] Muted ${member.user.username} who joined active focus session ${session.id}`);
             } catch (error) {
               console.error(`[Study] Failed to mute new joiner ${member.id}:`, error.message);
             }
@@ -443,6 +444,7 @@ export function setupStudySystem(client) {
             // Always unmute when leaving study VC to prevent mute from persisting
             try {
               await member.voice.setMute(false);
+              session.mutedUsers.delete(member.id);
               console.log(`[Study] Unmuted ${member.user.username} who left session ${session.id}`);
             } catch (error) {
               console.error(`[Study] Failed to unmute leaver ${member.id}:`, error.message);
@@ -834,6 +836,7 @@ function createSession(type, guildId, vcId, textId, creatorId, duration, usernam
     phase: "focus", // "focus" or "break"
     pomodoroCount: 0, // Number of completed focus sessions
     username, // For solo sessions, store username for VC name updates
+    mutedUsers: new Set(), // Track users who have been muted
   };
 
   state.activeSessions.set(vcId, session);
@@ -881,6 +884,8 @@ async function updateVoiceChannelName(client, session) {
 
 /**
  * Mute or unmute all non-bot members in a voice channel
+ * When muting: mutes current members in VC and tracks them
+ * When unmuting: unmutes ALL tracked users (even if they left the VC)
  */
 async function setVoiceChannelMute(client, session, shouldMute) {
   try {
@@ -890,18 +895,36 @@ async function setVoiceChannelMute(client, session, shouldMute) {
     const vc = guild.channels.cache.get(session.voiceChannelId);
     if (!vc) return;
 
-    const members = vc.members.filter(m => !m.user.bot);
-
-    for (const [memberId, member] of members) {
-      try {
-        await member.voice.setMute(shouldMute);
-      } catch (error) {
-        console.error(`[Study] Failed to ${shouldMute ? 'mute' : 'unmute'} member ${memberId}:`, error.message);
+    if (shouldMute) {
+      // Mute current members in VC
+      const members = vc.members.filter(m => !m.user.bot);
+      for (const [memberId, member] of members) {
+        try {
+          await member.voice.setMute(true);
+          session.mutedUsers.add(memberId);
+        } catch (error) {
+          console.error(`[Study] Failed to mute member ${memberId}:`, error.message);
+        }
       }
+      console.log(`[Study] Muted ${members.size} members in session ${session.id}`);
+    } else {
+      // Unmute ALL tracked users (even if they left the VC)
+      let unmutedCount = 0;
+      for (const memberId of session.mutedUsers) {
+        try {
+          const member = await guild.members.fetch(memberId);
+          if (member && member.voice.channelId) {
+            await member.voice.setMute(false);
+            unmutedCount++;
+          }
+        } catch (error) {
+          console.error(`[Study] Failed to unmute member ${memberId}:`, error.message);
+        }
+      }
+      // Clear the tracked users
+      session.mutedUsers.clear();
+      console.log(`[Study] Unmuted ${unmutedCount} members in session ${session.id}`);
     }
-
-    const action = shouldMute ? 'muted' : 'unmuted';
-    console.log(`[Study] ${action} ${members.size} members in session ${session.id}`);
   } catch (error) {
     console.error(`[Study] Error ${shouldMute ? 'muting' : 'unmuting'} members:`, error);
   }

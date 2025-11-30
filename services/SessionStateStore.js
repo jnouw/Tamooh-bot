@@ -122,7 +122,8 @@ export class SessionStateStore {
         completed: session.completed,
         phase: session.phase || "focus", // Save phase ("focus" or "break")
         pomodoroCount: session.pomodoroCount || 0, // Save pomodoro count
-        username: session.username || null // Save username for solo sessions
+        username: session.username || null, // Save username for solo sessions
+        mutedUsers: Array.from(session.mutedUsers || new Set()) // Save muted users list
       });
     }
 
@@ -167,7 +168,8 @@ export class SessionStateStore {
       state.activeSessions.set(sessionData.voiceChannelId, {
         ...sessionData,
         timer: null,
-        emptyTimeout: null
+        emptyTimeout: null,
+        mutedUsers: new Set(sessionData.mutedUsers || []) // Restore muted users as Set
       });
     }
 
