@@ -420,15 +420,16 @@ export function setupStudySystem(client) {
         const vc = guild.channels.cache.get(channelId);
         if (!vc) continue;
 
-        // If someone joined this channel, mute them if session is active
+        // If someone joined this channel, mute them if session is in FOCUS phase
         if (newState.channelId === channelId && oldState.channelId !== channelId) {
           // User joined this channel
           const member = newState.member;
-          if (member && !member.user.bot && session.timer) {
-            // Session is active (timer is running), mute the new joiner
+          if (member && !member.user.bot && session.phase === "focus" && session.timer) {
+            // Session is in focus phase, mute the new joiner
             try {
               await member.voice.setMute(true);
-              console.log(`[Study] Muted ${member.user.username} who joined active session ${session.id}`);
+              session.mutedUsers.add(member.id);
+              console.log(`[Study] Muted ${member.user.username} who joined active focus session ${session.id}`);
             } catch (error) {
               console.error(`[Study] Failed to mute new joiner ${member.id}:`, error.message);
             }
@@ -443,6 +444,7 @@ export function setupStudySystem(client) {
             // Always unmute when leaving study VC to prevent mute from persisting
             try {
               await member.voice.setMute(false);
+              session.mutedUsers.delete(member.id);
               console.log(`[Study] Unmuted ${member.user.username} who left session ${session.id}`);
             } catch (error) {
               console.error(`[Study] Failed to unmute leaver ${member.id}:`, error.message);
@@ -455,6 +457,7 @@ export function setupStudySystem(client) {
         // Start empty timeout if room is empty
         if (memberCount === 0 && !session.emptyTimeout) {
           session.emptyTimeout = setTimeout(async () => {
+            if (session.completed) return; // Don't process if session was already canceled
             const currentVc = guild.channels.cache.get(channelId);
             const currentCount = currentVc?.members.filter(m => !m.user.bot).size || 0;
 
@@ -624,13 +627,29 @@ async function handleGroupQueue(interaction, client, duration) {
     state.queueTimeouts[duration] = setTimeout(async () => {
       try {
         if (state.groupQueues[duration].size > 0) {
-          await interaction.channel.send({
+          const msg = await interaction.channel.send({
             content: `⏰ ${duration}min queue timeout! Starting session with ${state.groupQueues[duration].size} ${state.groupQueues[duration].size === 1 ? 'person' : 'people'}...`
           });
+          // Auto-delete timeout message after 1 minute
+          setTimeout(() => msg.delete().catch(() => {}), DELETE_DELAY_MS);
           await startGroupSession(interaction.guild, interaction.channel, client, duration);
         }
       } catch (error) {
         console.error(`[Study] ${duration}min queue timeout error:`, error);
+        // Clear queue and timeout on error to prevent stuck state
+        state.groupQueues[duration].clear();
+        state.queueTimeouts[duration] = null;
+        state.queueGuilds[duration] = null;
+        state.queueChannels[duration] = null;
+        sessionStateStore.saveState(state).catch(err =>
+          console.error('[Study] Failed to save state after queue timeout error:', err)
+        );
+        // Notify users
+        try {
+          await interaction.channel.send({
+            content: `❌ Failed to start ${duration}min group session. Please try joining the queue again.`
+          });
+        } catch {}
       }
     }, QUEUE_TIMEOUT_MS);
 
@@ -686,7 +705,17 @@ async function handleGroupQueue(interaction, client, duration) {
       clearTimeout(state.queueTimeouts[duration]);
       state.queueTimeouts[duration] = null;
     }
-    await startGroupSession(interaction.guild, interaction.channel, client, duration);
+    try {
+      await startGroupSession(interaction.guild, interaction.channel, client, duration);
+    } catch (error) {
+      console.error(`[Study] Failed to start group session:`, error);
+      // startGroupSession already clears the queue, so just notify users
+      try {
+        await interaction.channel.send({
+          content: `❌ Failed to start ${duration}min group session. Please try joining the queue again.`
+        });
+      } catch {}
+    }
   }
 }
 
@@ -832,6 +861,7 @@ function createSession(type, guildId, vcId, textId, creatorId, duration, usernam
     phase: "focus", // "focus" or "break"
     pomodoroCount: 0, // Number of completed focus sessions
     username, // For solo sessions, store username for VC name updates
+    mutedUsers: new Set(), // Track users who have been muted
   };
 
   state.activeSessions.set(vcId, session);
@@ -879,6 +909,8 @@ async function updateVoiceChannelName(client, session) {
 
 /**
  * Mute or unmute all non-bot members in a voice channel
+ * When muting: mutes current members in VC and tracks them
+ * When unmuting: unmutes ALL tracked users (even if they left the VC)
  */
 async function setVoiceChannelMute(client, session, shouldMute) {
   try {
@@ -888,18 +920,36 @@ async function setVoiceChannelMute(client, session, shouldMute) {
     const vc = guild.channels.cache.get(session.voiceChannelId);
     if (!vc) return;
 
-    const members = vc.members.filter(m => !m.user.bot);
-
-    for (const [memberId, member] of members) {
-      try {
-        await member.voice.setMute(shouldMute);
-      } catch (error) {
-        console.error(`[Study] Failed to ${shouldMute ? 'mute' : 'unmute'} member ${memberId}:`, error.message);
+    if (shouldMute) {
+      // Mute current members in VC
+      const members = vc.members.filter(m => !m.user.bot);
+      for (const [memberId, member] of members) {
+        try {
+          await member.voice.setMute(true);
+          session.mutedUsers.add(memberId);
+        } catch (error) {
+          console.error(`[Study] Failed to mute member ${memberId}:`, error.message);
+        }
       }
+      console.log(`[Study] Muted ${members.size} members in session ${session.id}`);
+    } else {
+      // Unmute ALL tracked users (even if they left the VC)
+      let unmutedCount = 0;
+      for (const memberId of session.mutedUsers) {
+        try {
+          const member = await guild.members.fetch(memberId);
+          if (member && member.voice.channelId) {
+            await member.voice.setMute(false);
+            unmutedCount++;
+          }
+        } catch (error) {
+          console.error(`[Study] Failed to unmute member ${memberId}:`, error.message);
+        }
+      }
+      // Clear the tracked users
+      session.mutedUsers.clear();
+      console.log(`[Study] Unmuted ${unmutedCount} members in session ${session.id}`);
     }
-
-    const action = shouldMute ? 'muted' : 'unmuted';
-    console.log(`[Study] ${action} ${members.size} members in session ${session.id}`);
   } catch (error) {
     console.error(`[Study] Error ${shouldMute ? 'muting' : 'unmuting'} members:`, error);
   }
@@ -921,6 +971,7 @@ async function startPomodoroTimer(session, client) {
 
   const focusMs = session.duration * 60 * 1000; // Convert minutes to milliseconds
   session.timer = setTimeout(async () => {
+    if (session.completed) return; // Don't process if session was canceled
     await completeFocusSession(session, client);
   }, focusMs);
 }
@@ -1073,6 +1124,7 @@ async function startBreakTimer(session, client) {
   console.log(`[Study] Starting ${Math.round(session.duration / 5)}-minute break for session ${session.id}`);
 
   session.timer = setTimeout(async () => {
+    if (session.completed) return; // Don't process if session was canceled
     await completeBreakSession(session, client);
   }, breakMs);
 
@@ -1270,7 +1322,7 @@ async function handleQueueLeave(interaction) {
 
   // Announce if queue still has people
   if (queueSize > 0) {
-    await interaction.channel.send({
+    const msg = await interaction.channel.send({
       content: `👋 <@${userId}> left the ${foundInQueue}min study queue (${queueSize}/${GROUP_QUEUE_THRESHOLD})`,
       allowedMentions: { users: [userId] }
     });
@@ -1487,6 +1539,7 @@ export async function recoverSessions(client) {
       // Restart the timer for the remaining time
       console.log(`[Study] Session ${session.id}: Recovering ${sessionPhase} phase with ${Math.round(remaining / 1000)}s remaining`);
       session.timer = setTimeout(async () => {
+        if (session.completed) return; // Don't process if session was canceled
         if (sessionPhase === "break") {
           await completeBreakSession(session, client);
         } else {
@@ -1513,11 +1566,21 @@ export async function recoverSessions(client) {
   // Log recovery summary
   console.log(`[Study] Recovery complete: ${recoveredCount} sessions recovered, ${cleanedCount} cleaned up`);
 
-  // Log queue status
+  // Handle recovered queues - clear them since we can't reliably restart timeouts
+  let clearedQueues = 0;
   for (const dur of [25, 50]) {
     if (state.groupQueues[dur]?.size > 0) {
-      console.log(`[Study] Recovered ${dur}min queue with ${state.groupQueues[dur].size} users (timeout not restarted - users should re-join)`);
+      const queueSize = state.groupQueues[dur].size;
+      console.log(`[Study] Clearing ${dur}min queue with ${queueSize} users (bot restarted - users need to rejoin)`);
+      state.groupQueues[dur].clear();
+      state.queueGuilds[dur] = null;
+      state.queueChannels[dur] = null;
+      clearedQueues++;
     }
+  }
+
+  if (clearedQueues > 0) {
+    console.log(`[Study] Cleared ${clearedQueues} queue(s). Users will need to rejoin queues.`);
   }
 
   // Save the cleaned-up state
