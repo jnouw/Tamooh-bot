@@ -457,6 +457,7 @@ export function setupStudySystem(client) {
         // Start empty timeout if room is empty
         if (memberCount === 0 && !session.emptyTimeout) {
           session.emptyTimeout = setTimeout(async () => {
+            if (session.completed) return; // Don't process if session was already canceled
             const currentVc = guild.channels.cache.get(channelId);
             const currentCount = currentVc?.members.filter(m => !m.user.bot).size || 0;
 
@@ -635,6 +636,20 @@ async function handleGroupQueue(interaction, client, duration) {
         }
       } catch (error) {
         console.error(`[Study] ${duration}min queue timeout error:`, error);
+        // Clear queue and timeout on error to prevent stuck state
+        state.groupQueues[duration].clear();
+        state.queueTimeouts[duration] = null;
+        state.queueGuilds[duration] = null;
+        state.queueChannels[duration] = null;
+        sessionStateStore.saveState(state).catch(err =>
+          console.error('[Study] Failed to save state after queue timeout error:', err)
+        );
+        // Notify users
+        try {
+          await interaction.channel.send({
+            content: `❌ Failed to start ${duration}min group session. Please try joining the queue again.`
+          });
+        } catch {}
       }
     }, QUEUE_TIMEOUT_MS);
 
@@ -690,7 +705,17 @@ async function handleGroupQueue(interaction, client, duration) {
       clearTimeout(state.queueTimeouts[duration]);
       state.queueTimeouts[duration] = null;
     }
-    await startGroupSession(interaction.guild, interaction.channel, client, duration);
+    try {
+      await startGroupSession(interaction.guild, interaction.channel, client, duration);
+    } catch (error) {
+      console.error(`[Study] Failed to start group session:`, error);
+      // startGroupSession already clears the queue, so just notify users
+      try {
+        await interaction.channel.send({
+          content: `❌ Failed to start ${duration}min group session. Please try joining the queue again.`
+        });
+      } catch {}
+    }
   }
 }
 
@@ -946,6 +971,7 @@ async function startPomodoroTimer(session, client) {
 
   const focusMs = session.duration * 60 * 1000; // Convert minutes to milliseconds
   session.timer = setTimeout(async () => {
+    if (session.completed) return; // Don't process if session was canceled
     await completeFocusSession(session, client);
   }, focusMs);
 }
@@ -1098,6 +1124,7 @@ async function startBreakTimer(session, client) {
   console.log(`[Study] Starting ${Math.round(session.duration / 5)}-minute break for session ${session.id}`);
 
   session.timer = setTimeout(async () => {
+    if (session.completed) return; // Don't process if session was canceled
     await completeBreakSession(session, client);
   }, breakMs);
 
@@ -1512,6 +1539,7 @@ export async function recoverSessions(client) {
       // Restart the timer for the remaining time
       console.log(`[Study] Session ${session.id}: Recovering ${sessionPhase} phase with ${Math.round(remaining / 1000)}s remaining`);
       session.timer = setTimeout(async () => {
+        if (session.completed) return; // Don't process if session was canceled
         if (sessionPhase === "break") {
           await completeBreakSession(session, client);
         } else {
@@ -1538,11 +1566,21 @@ export async function recoverSessions(client) {
   // Log recovery summary
   console.log(`[Study] Recovery complete: ${recoveredCount} sessions recovered, ${cleanedCount} cleaned up`);
 
-  // Log queue status
+  // Handle recovered queues - clear them since we can't reliably restart timeouts
+  let clearedQueues = 0;
   for (const dur of [25, 50]) {
     if (state.groupQueues[dur]?.size > 0) {
-      console.log(`[Study] Recovered ${dur}min queue with ${state.groupQueues[dur].size} users (timeout not restarted - users should re-join)`);
+      const queueSize = state.groupQueues[dur].size;
+      console.log(`[Study] Clearing ${dur}min queue with ${queueSize} users (bot restarted - users need to rejoin)`);
+      state.groupQueues[dur].clear();
+      state.queueGuilds[dur] = null;
+      state.queueChannels[dur] = null;
+      clearedQueues++;
     }
+  }
+
+  if (clearedQueues > 0) {
+    console.log(`[Study] Cleared ${clearedQueues} queue(s). Users will need to rejoin queues.`);
   }
 
   // Save the cleaned-up state
