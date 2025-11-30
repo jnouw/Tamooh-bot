@@ -474,6 +474,26 @@ export function setupStudySystem(client) {
           session.emptyTimeout = null;
         }
       }
+
+      // CRITICAL FIX: Unmute users who join non-study channels
+      // If a user joins ANY channel (study or not) and they're server muted, unmute them
+      // This prevents mute from persisting when users move to regular VCs
+      if (newState.channelId && newState.channelId !== oldState.channelId) {
+        const member = newState.member;
+        if (member && !member.user.bot && member.voice.serverMute) {
+          // Check if the new channel is NOT a study session
+          const isStudyChannel = state.activeSessions.has(newState.channelId);
+          if (!isStudyChannel) {
+            // User joined a non-study channel while server muted - unmute them
+            try {
+              await member.voice.setMute(false);
+              console.log(`[Study] Unmuted ${member.user.username} who joined non-study channel ${newState.channelId}`);
+            } catch (error) {
+              console.error(`[Study] Failed to unmute user ${member.id} in non-study channel:`, error.message);
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error("[Study] Voice state error:", error);
     }
@@ -938,12 +958,26 @@ async function setVoiceChannelMute(client, session, shouldMute) {
       for (const memberId of session.mutedUsers) {
         try {
           const member = await guild.members.fetch(memberId);
-          if (member && member.voice.channelId) {
-            await member.voice.setMute(false);
-            unmutedCount++;
+          if (member) {
+            // CRITICAL FIX: Attempt unmute regardless of voice channel state
+            // Discord API will handle users not in voice gracefully
+            // This ensures users don't stay muted after disconnecting
+            try {
+              await member.voice.setMute(false);
+              unmutedCount++;
+            } catch (voiceError) {
+              // User might not be in voice anymore, but that's okay
+              // The important thing is we tried to clear the mute state
+              if (voiceError.code === 40032) {
+                // Unknown voice state - user not in voice, this is expected
+                console.log(`[Study] User ${memberId} not in voice, skipping unmute`);
+              } else {
+                console.error(`[Study] Failed to unmute member ${memberId}:`, voiceError.message);
+              }
+            }
           }
         } catch (error) {
-          console.error(`[Study] Failed to unmute member ${memberId}:`, error.message);
+          console.error(`[Study] Failed to fetch member ${memberId}:`, error.message);
         }
       }
       // Clear the tracked users
