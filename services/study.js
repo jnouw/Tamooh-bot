@@ -624,9 +624,11 @@ async function handleGroupQueue(interaction, client, duration) {
     state.queueTimeouts[duration] = setTimeout(async () => {
       try {
         if (state.groupQueues[duration].size > 0) {
-          await interaction.channel.send({
+          const msg = await interaction.channel.send({
             content: `⏰ ${duration}min queue timeout! Starting session with ${state.groupQueues[duration].size} ${state.groupQueues[duration].size === 1 ? 'person' : 'people'}...`
           });
+          // Auto-delete timeout message after 1 minute
+          setTimeout(() => msg.delete().catch(() => {}), DELETE_DELAY_MS);
           await startGroupSession(interaction.guild, interaction.channel, client, duration);
         }
       } catch (error) {
