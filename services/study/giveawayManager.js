@@ -34,14 +34,16 @@ export async function runGiveaway(message, prizeName) {
       // Get user's session stats
       const stats = studyStatsStore.getUserStats(userId, guildId);
 
-      // Add to eligible users with their ticket count (tickets = 1 base + hours × 10)
+      // Add to eligible users with their ticket count
+      // Formula: 8 base tickets + square root scaling (diminishing returns)
+      // This gives everyone a baseline chance while rewarding study time fairly
       eligibleUsers.push({
         userId,
         username: member.user.username,
         displayName: member.displayName || member.user.username,
         sessions: stats.totalSessions,
         hours: stats.totalHours,
-        tickets: 1 + Math.round(stats.totalHours * 10)
+        tickets: 8 + Math.round(Math.sqrt(stats.totalHours) * 8)
       });
     }
 
@@ -50,7 +52,7 @@ export async function runGiveaway(message, prizeName) {
       return message.channel.send("❌ No eligible participants found!\n\nUsers must have both roles: <@&" + STUDY_ROLE_ID + "> and <@&" + TAMOOH_ROLE_ID + ">");
     }
 
-    // Build weighted pool (1 base ticket for roles + tickets based on hours)
+    // Build weighted pool (8 base tickets + √hours scaling))
     const weightedPool = [];
     for (const user of eligibleUsers) {
       for (let i = 0; i < user.tickets; i++) {
