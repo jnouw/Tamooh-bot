@@ -117,6 +117,19 @@ export async function handleQuizStart(interaction, questionLoader, sessionManage
         type: ChannelType.PrivateThread,
         invitable: false,
       });
+
+      // Ensure the quiz participant can access the private thread
+      try {
+        await channel.members.add(interaction.user.id);
+      } catch (error) {
+        logger.warn("Failed to add user to private quiz thread", {
+          error: error.message,
+          channelId: channel.id,
+          userId: interaction.user.id,
+        });
+        // Fall back to the original channel if we can't add them
+        channel = interaction.channel;
+      }
     } catch (error) {
       logger.error("Failed to create thread", { error: error.message });
     }
@@ -197,7 +210,7 @@ async function showSummary(channel, session, scores) {
 
   // Record result for leaderboard
   try {
-    scores.record({
+    await scores.record({
       guildId: session.guildId,
       userId: session.userId,
       mode: session.mode,

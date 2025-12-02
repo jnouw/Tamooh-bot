@@ -16,8 +16,15 @@ export class ScoreStore {
     this.data = { results: [] };
     this.saveQueue = Promise.resolve();
     this.pendingSave = false;
-    
-    this.init();
+    this.initializing = true;
+
+    this.ready = this.init()
+      .catch(error => {
+        logger.error('ScoreStore failed to initialize', { error: error.message });
+      })
+      .finally(() => {
+        this.initializing = false;
+      });
   }
 
   /**
@@ -58,6 +65,10 @@ export class ScoreStore {
    * Save data to file with backup
    */
   async save() {
+    if (!this.initializing) {
+      await this.ready;
+    }
+
     // Queue saves to prevent concurrent writes
     this.saveQueue = this.saveQueue.then(async () => {
       try {
@@ -69,15 +80,15 @@ export class ScoreStore {
         // Write to file
         const data = JSON.stringify(this.data, null, 2);
         await writeFile(this.file, data, 'utf8');
-        
+
         // Clean old backups
         if (CONFIG.BACKUP_SCORES) {
           await this.cleanOldBackups();
         }
-
-        this.pendingSave = false;
       } catch (error) {
         logger.error('Failed to save scores', { error: error.message });
+      } finally {
+        this.pendingSave = false;
       }
     });
 
@@ -88,6 +99,10 @@ export class ScoreStore {
    * Save with debouncing
    */
   async saveDebounced() {
+    if (!this.initializing) {
+      await this.ready;
+    }
+
     if (this.pendingSave) return;
 
     this.pendingSave = true;
@@ -96,6 +111,8 @@ export class ScoreStore {
         await this.save();
       } catch (error) {
         logger.error('Debounced save failed', { error: error.message });
+      } finally {
+        this.pendingSave = false;
       }
     }, 5000); // Save after 5 seconds of inactivity
   }
@@ -177,10 +194,12 @@ export class ScoreStore {
   /**
    * Record a quiz result
    */
-  record({ guildId, userId, mode, score, total, chapter = null, createdAt = Date.now() }) {
+  async record({ guildId, userId, mode, score, total, chapter = null, createdAt = Date.now() }) {
+    await this.ready;
+
     const percent = Math.round((score / total) * 100);
-    this.data.results.push({ 
-      guildId, 
+    this.data.results.push({
+      guildId,
       userId, 
       mode, 
       score, 
