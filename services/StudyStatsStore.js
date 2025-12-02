@@ -161,7 +161,7 @@ export class StudyStatsStore {
 
     // Check for milestone (only if session is valid)
     const milestone = valid
-      ? this.checkMilestone(oldStats.totalHours, newStats.totalHours, oldStats.totalSessions)
+      ? this.checkMilestone(oldStats.lifetimeHours, newStats.lifetimeHours, oldStats.totalSessions)
       : null;
 
     await this.save();
@@ -194,7 +194,7 @@ export class StudyStatsStore {
       let milestone = null;
       if (!wasValid && session.valid) {
         const newStats = this.getUserStats(session.userId, session.guildId);
-        milestone = this.checkMilestone(oldStats.totalHours, newStats.totalHours, oldStats.totalSessions);
+        milestone = this.checkMilestone(oldStats.lifetimeHours, newStats.lifetimeHours, oldStats.totalSessions);
       }
 
       await this.save();
