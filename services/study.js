@@ -184,6 +184,116 @@ export function setupStudySystem(client) {
     }
   });
 
+  // Owner command to reset study stats/tickets
+  client.on(Events.MessageCreate, async (message) => {
+    if (message.author.bot) return;
+    if (message.author.id !== OWNER_ID) return;
+    if (!message.content.trim().startsWith("!resetstats")) return;
+
+    try {
+      const args = message.content.trim().split(/\s+/);
+      const guildId = message.guild.id;
+
+      // Parse command: !resetstats [@user] [hours]
+      let targetUserId = null;
+      let hours = 0;
+      let resetAll = false;
+
+      if (args.length === 1) {
+        // !resetstats - reset all to 0
+        resetAll = true;
+      } else if (args[1] === "all") {
+        // !resetstats all [hours]
+        resetAll = true;
+        hours = args[2] ? parseFloat(args[2]) : 0;
+      } else if (args[1].startsWith("<@")) {
+        // !resetstats @user [hours]
+        targetUserId = args[1].replace(/[<@!>]/g, "");
+        hours = args[2] ? parseFloat(args[2]) : 0;
+      } else {
+        return message.reply("❌ Usage:\n`!resetstats` - Reset all users to 0\n`!resetstats @user` - Reset user to 0\n`!resetstats @user 10` - Set user to 10 hours\n`!resetstats all 5` - Set all users to 5 hours");
+      }
+
+      if (isNaN(hours) || hours < 0) {
+        return message.reply("❌ Hours must be a positive number");
+      }
+
+      const { studyStatsStore } = await import('./StudyStatsStore.js');
+
+      if (resetAll) {
+        // Reset all users
+        const sessions = studyStatsStore.data.sessions.filter(s => s.guildId === guildId);
+        const uniqueUsers = [...new Set(sessions.map(s => s.userId))];
+
+        if (uniqueUsers.length === 0) {
+          return message.reply("❌ No users found with study stats");
+        }
+
+        // Clear all sessions for this guild
+        studyStatsStore.data.sessions = studyStatsStore.data.sessions.filter(s => s.guildId !== guildId);
+
+        // If hours > 0, add new valid sessions
+        if (hours > 0) {
+          const minutes = Math.round(hours * 60);
+          for (const userId of uniqueUsers) {
+            studyStatsStore.data.sessions.push({
+              userId,
+              guildId,
+              minutes,
+              timestamp: Date.now(),
+              valid: true,
+              gamingMinutes: 0,
+              afkCheckPassed: true
+            });
+          }
+        }
+
+        await studyStatsStore.save();
+
+        const tickets = hours === 0 ? 8 : (8 + Math.round(Math.sqrt(hours) * 8));
+        return message.reply(`✅ Reset stats for **${uniqueUsers.length}** users to **${hours}** hours (${tickets} tickets)`);
+
+      } else if (targetUserId) {
+        // Reset specific user
+        const existingSessions = studyStatsStore.data.sessions.filter(
+          s => s.guildId === guildId && s.userId === targetUserId
+        );
+
+        if (existingSessions.length === 0 && hours === 0) {
+          return message.reply("❌ User has no study stats to reset");
+        }
+
+        // Remove user's sessions
+        studyStatsStore.data.sessions = studyStatsStore.data.sessions.filter(
+          s => !(s.guildId === guildId && s.userId === targetUserId)
+        );
+
+        // If hours > 0, add new valid session
+        if (hours > 0) {
+          const minutes = Math.round(hours * 60);
+          studyStatsStore.data.sessions.push({
+            userId: targetUserId,
+            guildId,
+            minutes,
+            timestamp: Date.now(),
+            valid: true,
+            gamingMinutes: 0,
+            afkCheckPassed: true
+          });
+        }
+
+        await studyStatsStore.save();
+
+        const tickets = hours === 0 ? 8 : (8 + Math.round(Math.sqrt(hours) * 8));
+        return message.reply(`✅ Reset <@${targetUserId}>'s stats to **${hours}** hours (${tickets} tickets)`);
+      }
+
+    } catch (error) {
+      console.error("[Study] Error resetting stats:", error);
+      message.reply("❌ Error resetting stats. Check console for details.").catch(() => { });
+    }
+  });
+
   // Voice state updates (handle empty rooms, mute new joiners, unmute leavers)
   client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     try {
