@@ -61,114 +61,67 @@ export async function handleViolationsCommand(message) {
 }
 
 /**
- * Handle !tickets command - manage ticket overrides
- * Usage:
- *   !tickets list
- *   !tickets clear
- *   !tickets clear @user
- *   !tickets set @user 50
+ * Handle !reset_period command - reset giveaway period for soft reset
+ * Usage: !reset_period
  */
-export async function handleTicketsCommand(message, args) {
+export async function handleResetPeriodCommand(message) {
   if (!isAdmin(message)) {
     await message.reply("❌ This command is only available to administrators.");
     return;
   }
 
-  const action = args[0]?.toLowerCase();
+  // Confirm before resetting
+  const confirmMsg = await message.reply(
+    "⚠️ **Confirm Giveaway Period Reset**\n\n" +
+      "This will:\n" +
+      "• Reset current period hours to 0 for all users\n" +
+      "• Keep lifetime hours forever (never deleted)\n" +
+      "• Start a fresh competition for the new giveaway\n\n" +
+      "React with ✅ to confirm, or ❌ to cancel. (30 seconds)"
+  );
 
-  if (!action) {
-    await message.reply(
-      "❌ **Usage:**\n" +
-        "• `!tickets list` - Show all ticket overrides\n" +
-        "• `!tickets clear` - Clear all overrides\n" +
-        "• `!tickets clear @user` - Clear specific user override\n" +
-        "• `!tickets set @user <number>` - Set user tickets (0 to remove)"
-    );
-    return;
-  }
+  await confirmMsg.react("✅");
+  await confirmMsg.react("❌");
 
-  if (action === "list") {
-    const overrides = studyStatsStore.getGuildTicketOverrides(message.guildId);
+  try {
+    const filter = (reaction, user) =>
+      (reaction.emoji.name === "✅" || reaction.emoji.name === "❌") &&
+      user.id === message.author.id;
 
-    if (overrides.size === 0) {
-      await message.reply(
-        "📋 No ticket overrides are currently set. All users use the formula: 8 + √hours × 8"
-      );
-      return;
-    }
+    const collected = await confirmMsg.awaitReactions({
+      filter,
+      max: 1,
+      time: 30000,
+      errors: ["time"],
+    });
 
-    const lines = Array.from(overrides.entries())
-      .map(([userId, tickets]) => `• <@${userId}>: **${tickets}** tickets`)
-      .join("\n");
+    const reaction = collected.first();
 
-    const embed = new EmbedBuilder()
-      .setTitle("🎫 Ticket Overrides")
-      .setDescription(lines)
-      .setColor(0x5865f2)
-      .setFooter({ text: `Total overrides: ${overrides.size}` });
+    if (reaction.emoji.name === "✅") {
+      const result = await studyStatsStore.resetGiveawayPeriod(message.guildId);
 
-    await message.reply({ embeds: [embed] });
-  } else if (action === "clear") {
-    const mentionedUser = message.mentions.users.first();
+      const embed = new EmbedBuilder()
+        .setTitle("✅ Giveaway Period Reset Complete")
+        .setDescription(
+          `**Current period has been reset!**\n\n` +
+            `📊 Users affected: ${result.usersAffected}\n` +
+            `📅 New period started: ${new Date(result.periodStartDate).toLocaleString()}\n\n` +
+            `**What changed:**\n` +
+            `• ✅ Lifetime hours preserved forever\n` +
+            `• 🔄 Current period hours reset to 0\n` +
+            `• 🎫 Tickets will recalculate: 10 + √lifetime×5 + current×2\n\n` +
+            `Newcomers and active studiers now compete fairly!`
+        )
+        .setColor(0x57f287);
 
-    if (mentionedUser) {
-      // Clear specific user
-      await studyStatsStore.setTicketOverride(
-        mentionedUser.id,
-        message.guildId,
-        0
-      );
-      await message.reply(
-        `✅ Cleared ticket override for <@${mentionedUser.id}>`
-      );
+      await message.reply({ embeds: [embed] });
+      await confirmMsg.delete().catch(() => {});
     } else {
-      // Clear all overrides for the guild
-      const overrides = studyStatsStore.getGuildTicketOverrides(message.guildId);
-      let count = 0;
-
-      for (const [userId, _] of overrides) {
-        await studyStatsStore.setTicketOverride(userId, message.guildId, 0);
-        count++;
-      }
-
-      await message.reply(
-        `✅ Cleared **${count}** ticket overrides. All users will now use the formula: 8 + √hours × 8`
-      );
+      await message.reply("❌ Period reset cancelled.");
+      await confirmMsg.delete().catch(() => {});
     }
-  } else if (action === "set") {
-    const mentionedUser = message.mentions.users.first();
-    const tickets = parseInt(args[2]);
-
-    if (!mentionedUser || isNaN(tickets) || tickets < 0) {
-      await message.reply(
-        "❌ **Usage:** `!tickets set @user <number>`\n" +
-          "Example: `!tickets set @john 50`"
-      );
-      return;
-    }
-
-    await studyStatsStore.setTicketOverride(
-      mentionedUser.id,
-      message.guildId,
-      tickets
-    );
-
-    if (tickets === 0) {
-      await message.reply(
-        `✅ Cleared ticket override for <@${mentionedUser.id}>. They will now use the formula: 8 + √hours × 8`
-      );
-    } else {
-      await message.reply(
-        `✅ Set ticket override for <@${mentionedUser.id}> to **${tickets} tickets**`
-      );
-    }
-  } else {
-    await message.reply(
-      `❌ Unknown action: \`${action}\`\n\n` +
-        "**Available actions:**\n" +
-        "• `list` - Show all overrides\n" +
-        "• `clear` - Clear all or specific user\n" +
-        "• `set` - Set user tickets"
-    );
+  } catch (error) {
+    await message.reply("❌ Period reset cancelled (timed out).");
+    await confirmMsg.delete().catch(() => {});
   }
 }

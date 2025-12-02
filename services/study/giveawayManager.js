@@ -31,24 +31,22 @@ export async function runGiveaway(message, prizeName) {
 
       if (!hasStudyRole || !hasTamoohRole) continue;
 
-      // Get user's session stats
+      // Get user's session stats (with lifetime and current period hours)
       const stats = studyStatsStore.getUserStats(userId, guildId);
 
-      // Check for ticket override first, otherwise calculate from hours
-      const ticketOverride = studyStatsStore.getTicketOverride(userId, guildId);
-      const tickets = ticketOverride !== null
-        ? ticketOverride
-        : (8 + Math.round(Math.sqrt(stats.totalHours) * 8));
+      // Calculate tickets using new period-based formula
+      // Formula: 10 + √lifetimeHours × 5 + currentPeriodHours × 2
+      // This rewards recent study more while respecting lifetime effort
+      const tickets = studyStatsStore.calculateTickets(stats.lifetimeHours, stats.currentPeriodHours);
 
       // Add to eligible users with their ticket count
-      // Formula: 8 base tickets + square root scaling (diminishing returns)
-      // This gives everyone a baseline chance while rewarding study time fairly
       eligibleUsers.push({
         userId,
         username: member.user.username,
         displayName: member.displayName || member.user.username,
         sessions: stats.totalSessions,
-        hours: stats.totalHours,
+        hours: stats.lifetimeHours,
+        currentPeriodHours: stats.currentPeriodHours,
         tickets: tickets
       });
     }

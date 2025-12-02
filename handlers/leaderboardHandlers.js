@@ -91,13 +91,9 @@ export async function handleStudyLeaderboard(interaction) {
     return;
   }
 
-  // Calculate tickets for leaderboard users
+  // Calculate tickets for leaderboard users using new period-based formula
   const usersWithTickets = leaderboard.map(entry => {
-    // Check for ticket override first, otherwise calculate from hours
-    const ticketOverride = studyStatsStore.getTicketOverride(entry.userId, interaction.guildId);
-    const tickets = ticketOverride !== null
-      ? ticketOverride
-      : (8 + Math.round(Math.sqrt(entry.totalHours) * 8));
+    const tickets = studyStatsStore.calculateTickets(entry.lifetimeHours, entry.currentPeriodHours);
 
     return {
       ...entry,
@@ -124,16 +120,13 @@ export async function handleStudyLeaderboard(interaction) {
     // Get user's session stats
     const stats = studyStatsStore.getUserStats(userId, interaction.guildId);
 
-    // Calculate tickets (override or formula)
-    const ticketOverride = studyStatsStore.getTicketOverride(userId, interaction.guildId);
-    const tickets = ticketOverride !== null
-      ? ticketOverride
-      : (8 + Math.round(Math.sqrt(stats.totalHours) * 8));
+    // Calculate tickets using new formula
+    const tickets = studyStatsStore.calculateTickets(stats.lifetimeHours, stats.currentPeriodHours);
 
     totalTickets += tickets;
   }
 
-  // Create leaderboard lines with tickets, hours, and ACCURATE win chance
+  // Create leaderboard lines with tickets, lifetime hours, current period hours, and win chance
   const lines = usersWithTickets.map((entry, i) => {
     const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `**${i + 1}.**`;
     const winChance = totalTickets > 0
@@ -141,14 +134,20 @@ export async function handleStudyLeaderboard(interaction) {
       : "0.00";
 
     return `${medal} <@${entry.userId}>\n` +
-           `   🎫 ${entry.tickets} tickets | ⏱️ ${entry.totalHours}h | 🎲 ${winChance}% chance`;
+           `   🎫 ${entry.tickets} tickets | 📚 ${entry.lifetimeHours}h lifetime | 🔥 ${entry.currentPeriodHours}h this period\n` +
+           `   🎲 ${winChance}% win chance`;
   });
+
+  const periodStart = studyStatsStore.getGiveawayPeriodStart(interaction.guildId);
+  const periodInfo = periodStart > 0
+    ? `Current period started: ${new Date(periodStart).toLocaleDateString()}`
+    : "No period reset yet - all hours count equally";
 
   const embed = new EmbedBuilder()
     .setTitle("📚 Study Leaderboard - Top 10")
     .setDescription(lines.join("\n\n"))
     .setColor(0x5865F2)
-    .setFooter({ text: "More study time = More tickets = Higher win chance!" });
+    .setFooter({ text: `${periodInfo} | Formula: 10 + √lifetime×5 + current×2` });
 
   await interaction.editReply({ embeds: [embed] });
 }
@@ -203,92 +202,6 @@ export async function handleViolationStats(interaction) {
   await interaction.editReply({ embeds: [embed] });
 }
 
-/**
- * Handle ticket override management command (admin only)
- */
-export async function handleTicketOverride(interaction) {
-  // Check if user is admin/owner
-  if (interaction.user.id !== OWNER_ID && !interaction.member.permissions.has("Administrator")) {
-    await interaction.reply({
-      content: "❌ This command is only available to administrators.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  const action = interaction.options.getString("action");
-  const targetUser = interaction.options.getUser("user");
-  const tickets = interaction.options.getInteger("tickets");
-
-  if (action === "set") {
-    if (!targetUser || tickets === null) {
-      await interaction.reply({
-        content: "❌ Please provide both a user and ticket count for the 'set' action.",
-        ephemeral: true,
-      });
-      return;
-    }
-
-    await studyStatsStore.setTicketOverride(targetUser.id, interaction.guildId, tickets);
-
-    if (tickets === 0) {
-      await interaction.reply({
-        content: `✅ Cleared ticket override for <@${targetUser.id}>. They will now use the formula: 8 + √hours × 8`,
-        ephemeral: true,
-      });
-    } else {
-      await interaction.reply({
-        content: `✅ Set ticket override for <@${targetUser.id}> to **${tickets} tickets**`,
-        ephemeral: true,
-      });
-    }
-  } else if (action === "clear") {
-    if (targetUser) {
-      // Clear specific user
-      await studyStatsStore.setTicketOverride(targetUser.id, interaction.guildId, 0);
-      await interaction.reply({
-        content: `✅ Cleared ticket override for <@${targetUser.id}>`,
-        ephemeral: true,
-      });
-    } else {
-      // Clear all overrides for the guild
-      const overrides = studyStatsStore.getGuildTicketOverrides(interaction.guildId);
-      let count = 0;
-
-      for (const [userId, _] of overrides) {
-        await studyStatsStore.setTicketOverride(userId, interaction.guildId, 0);
-        count++;
-      }
-
-      await interaction.reply({
-        content: `✅ Cleared **${count}** ticket overrides. All users will now use the formula: 8 + √hours × 8`,
-        ephemeral: true,
-      });
-    }
-  } else if (action === "list") {
-    const overrides = studyStatsStore.getGuildTicketOverrides(interaction.guildId);
-
-    if (overrides.size === 0) {
-      await interaction.reply({
-        content: "📋 No ticket overrides are currently set. All users use the formula: 8 + √hours × 8",
-        ephemeral: true,
-      });
-      return;
-    }
-
-    const lines = Array.from(overrides.entries())
-      .map(([userId, tickets]) => `• <@${userId}>: **${tickets}** tickets`)
-      .join("\n");
-
-    const embed = new EmbedBuilder()
-      .setTitle("🎫 Ticket Overrides")
-      .setDescription(lines)
-      .setColor(0x5865F2)
-      .setFooter({ text: `Total overrides: ${overrides.size}` });
-
-    await interaction.reply({ embeds: [embed], ephemeral: true });
-  }
-}
 
 /**
  * Handle /help command - show all available commands
@@ -310,29 +223,32 @@ export async function handleHelpCommand(interaction) {
         name: "📖 Study Commands (Slash)",
         value:
           "• `/study_leaderboard` - View top 10 students by study time\n" +
-          "  Shows tickets, hours, and win chance for giveaways",
+          "  Shows tickets, lifetime hours, current period hours, and win chance",
         inline: false,
       },
       {
         name: "🔧 Admin Commands (! prefix - hidden)",
         value:
           "• `!violations` - View AFK and gaming violation statistics\n" +
-          "• `!tickets list` - Show all ticket overrides\n" +
-          "• `!tickets clear` - Clear all ticket overrides\n" +
-          "• `!tickets clear @user` - Clear specific user override\n" +
-          "• `!tickets set @user <number>` - Set user tickets",
+          "• `!reset_period` - Reset giveaway period (soft reset for new competition)",
         inline: false,
       },
       {
-        name: "🎟️ Ticket System",
+        name: "🎟️ Period-Based Ticket System",
         value:
-          "**Formula:** `8 + √(hours) × 8`\n" +
-          "After each giveaway, ticket overrides are cleared but **your study hours stay forever**.\n" +
-          "More study time = More tickets = Higher win chance!",
+          "**Formula:** `10 + √(lifetime hours) × 5 + (current period hours) × 2`\n\n" +
+          "**How it works:**\n" +
+          "• Lifetime hours = All valid study hours (never deleted) 📚\n" +
+          "• Current period = Hours since last giveaway reset 🔥\n" +
+          "• Recent study counts MORE than old hours!\n\n" +
+          "**After each giveaway:** Admin resets the period\n" +
+          "• Current period hours → 0 (fresh start)\n" +
+          "• Lifetime hours stay forever ✅\n" +
+          "• Newcomers compete fairly with veterans!",
         inline: false,
       }
     )
-    .setFooter({ text: "Study hard and good luck! 💚" });
+    .setFooter({ text: "Study consistently and good luck! 💚" });
 
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }

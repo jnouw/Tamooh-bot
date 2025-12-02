@@ -16,7 +16,7 @@ import { setupStudySystem, handleSoloPomodoro, handleGroupQueue, handleShowStats
 import { studyStatsStore } from "./services/StudyStatsStore.js";
 import { handleQuizStart } from "./handlers/quizHandlers.js";
 import { handleLeaderboard, handleMyStats, handleStudyLeaderboard, handleHelpCommand } from "./handlers/leaderboardHandlers.js";
-import { handleViolationsCommand, handleTicketsCommand } from "./handlers/adminCommandHandlers.js";
+import { handleViolationsCommand, handleResetPeriodCommand } from "./handlers/adminCommandHandlers.js";
 import {
   handleMCQAnswer,
   handleOpenLineModal,
@@ -193,8 +193,8 @@ client.on("messageCreate", async (message) => {
   try {
     if (command === "violations") {
       await handleViolationsCommand(message);
-    } else if (command === "tickets") {
-      await handleTicketsCommand(message, args);
+    } else if (command === "reset_period") {
+      await handleResetPeriodCommand(message);
     }
   } catch (error) {
     logger.error("Message command error", {
