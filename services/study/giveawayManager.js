@@ -67,6 +67,21 @@ export async function runGiveaway(message, prizeName) {
     // Calculate total tickets
     const totalTickets = weightedPool.length;
 
+    // 🥁 DRAMATIC COUNTDOWN! 🥁
+    const drumRollMsg = await message.channel.send("🥁 **Selecting the winner...**");
+
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    await drumRollMsg.edit("🥁 **3...**");
+
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await drumRollMsg.edit("🥁 **2...**");
+
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await drumRollMsg.edit("🥁 **1...**");
+
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await drumRollMsg.delete().catch(() => {});
+
     // Calculate winner statistics
     const winPercentage = ((winner.tickets / totalTickets) * 100).toFixed(2);
     const avgSessionLength = winner.sessions > 0 ? (winner.hours / winner.sessions).toFixed(1) : 0;
