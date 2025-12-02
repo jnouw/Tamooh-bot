@@ -67,6 +67,35 @@ export async function runGiveaway(message, prizeName) {
     // Calculate total tickets
     const totalTickets = weightedPool.length;
 
+    // 🥁 DRAMATIC COUNTDOWN! 🥁
+    const drumRollMsg = await message.channel.send("🥁 **Selecting the winner...**");
+
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    await drumRollMsg.edit("🥁 **3...**");
+
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await drumRollMsg.edit("🥁 **2...**");
+
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await drumRollMsg.edit("🥁 **1...**");
+
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await drumRollMsg.delete().catch(() => {});
+
+    // Calculate winner statistics
+    const winPercentage = ((winner.tickets / totalTickets) * 100).toFixed(2);
+    const avgSessionLength = winner.sessions > 0 ? (winner.hours / winner.sessions).toFixed(1) : 0;
+
+    // Calculate percentile rank
+    const usersWithFewerTickets = eligibleUsers.filter(u => u.tickets < winner.tickets).length;
+    const percentileRank = Math.round(((eligibleUsers.length - usersWithFewerTickets) / eligibleUsers.length) * 100);
+
+    // Determine competition level
+    const avgTickets = totalTickets / eligibleUsers.length;
+    let competitionLevel = "Low";
+    if (avgTickets > 30) competitionLevel = "High";
+    else if (avgTickets > 20) competitionLevel = "Medium";
+
     // Create winner announcement embed
     const embed = new EmbedBuilder()
       .setTitle("🎉 Giveaway Winner!")
@@ -75,14 +104,25 @@ export async function runGiveaway(message, prizeName) {
         `**Prize:** ${prizeName}\n\n` +
         `**Winner:** <@${winner.userId}>\n\n` +
         `━━━━━━━━━━━━━━━━━━━━\n\n` +
-        `**Winner Stats:**\n` +
-        `🎫 Tickets: ${winner.tickets}\n` +
-        `📚 Study Sessions: ${winner.sessions}\n` +
-        `⏱️ Study Hours: ${winner.hours}\n\n` +
-        `**Giveaway Info:**\n` +
-        `👥 Eligible Participants: ${eligibleUsers.length}\n` +
-        `🎫 Total Tickets: ${totalTickets}\n` +
-        `📊 Win Chance: ${((winner.tickets / totalTickets) * 100).toFixed(2)}%`
+        (winner.hours > 0
+          ? `**🏆 Winner's Study Journey:**\n` +
+            `⏱️ Total Study Time: ${winner.hours} hours\n` +
+            `📚 Study Sessions Completed: ${winner.sessions} sessions\n` +
+            `📈 Average Session Length: ${avgSessionLength} hours\n` +
+            `🎫 Tickets Earned: ${winner.tickets}\n` +
+            `📊 Win Probability: ${winPercentage}%\n` +
+            `🔥 Percentile Rank: Top ${percentileRank}% of all participants\n\n`
+          : `**🏆 Winner's Stats:**\n` +
+            `⏱️ Total Study Time: 0 hours\n` +
+            `📚 Study Sessions Completed: 0 sessions\n` +
+            `🎫 Tickets Earned: ${winner.tickets} (baseline entry)\n` +
+            `📊 Win Probability: ${winPercentage}%\n` +
+            `✨ Status: First win before first session!\n\n`
+        ) +
+        `**Giveaway Summary:**\n` +
+        `👥 Total Participants: ${eligibleUsers.length}\n` +
+        `🎫 Total Tickets in Pool: ${totalTickets}\n` +
+        `⚡ Competition Level: ${competitionLevel}`
       )
       .setFooter({ text: "More study time = More chances to win!" })
       .setTimestamp();
@@ -90,16 +130,65 @@ export async function runGiveaway(message, prizeName) {
     // Send announcement
     await message.channel.send({ embeds: [embed] });
 
-    // Create eligible users list sorted by tickets (descending)
-    const sortedUsers = [...eligibleUsers].sort((a, b) => b.tickets - a.tickets);
+    // Create eligible users list sorted by hours (descending), then by tickets
+    const sortedUsers = [...eligibleUsers].sort((a, b) => {
+      if (b.hours !== a.hours) return b.hours - a.hours;
+      return b.tickets - a.tickets;
+    });
+
+    // Group users by hour tiers
+    const groups = {
+      "25plus": { title: "🏆 25+ Hours", users: [] },
+      "10to25": { title: "⭐ 10-25 Hours", users: [] },
+      "5to10": { title: "💪 5-10 Hours", users: [] },
+      "under5": { title: "🌱 Under 5 Hours", users: [] },
+      "zero": { title: "🆕 No Study Time Yet", users: [] }
+    };
+
+    // Categorize users into groups
+    for (const user of sortedUsers) {
+      if (user.hours === 0) {
+        groups.zero.users.push(user);
+      } else if (user.hours >= 25) {
+        groups["25plus"].users.push(user);
+      } else if (user.hours >= 10) {
+        groups["10to25"].users.push(user);
+      } else if (user.hours >= 5) {
+        groups["5to10"].users.push(user);
+      } else {
+        groups.under5.users.push(user);
+      }
+    }
 
     // Build the eligible users list
     let userListText = "";
-    for (let i = 0; i < sortedUsers.length; i++) {
-      const user = sortedUsers[i];
-      const winPercentage = ((user.tickets / totalTickets) * 100).toFixed(2);
-      userListText += `**${i + 1}.** ${user.displayName}\n`;
-      userListText += `   └ 📚 Sessions: ${user.sessions} | 🎫 Tickets: ${user.tickets} | 📊 Win Chance: ${winPercentage}%\n\n`;
+    let currentRank = 1;
+
+    // Process each group
+    for (const [key, group] of Object.entries(groups)) {
+      if (group.users.length === 0) continue;
+
+      // Handle zero-hour users specially (inline with pipe separators)
+      if (key === "zero") {
+        const zeroWinPercentage = ((8 / totalTickets) * 100).toFixed(2);
+        userListText += `━━━ ${group.title} | 📊 ${zeroWinPercentage}% each ━━━\n`;
+
+        // Group users in rows of 5
+        for (let i = 0; i < group.users.length; i += 5) {
+          const chunk = group.users.slice(i, i + 5);
+          userListText += chunk.map(u => `<@${u.userId}>`).join(" | ") + "\n";
+        }
+        userListText += "\n";
+      } else {
+        // Regular groups with individual listings
+        userListText += `━━━ ${group.title} ━━━\n`;
+        for (const user of group.users) {
+          const winPercentage = ((user.tickets / totalTickets) * 100).toFixed(2);
+          userListText += `**${currentRank}.** <@${user.userId}> — ⏱️ ${user.hours}h | 📊 ${winPercentage}%\n`;
+          currentRank++;
+        }
+        userListText += "\n";
+      }
     }
 
     // Split the user list if it's too long for Discord (max 2000 chars per message)
