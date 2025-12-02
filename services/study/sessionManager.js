@@ -4,6 +4,8 @@ import { sessionStateStore } from "../SessionStateStore.js";
 import { logToChannel, announceMilestone } from "./utils.js";
 import { DELETE_DELAY_MS } from "./config.js";
 import { setVoiceChannelMute, updateVoiceChannelName } from "./voiceManager.js";
+import { activityTracker } from "./activityTracker.js";
+import { afkChecker } from "./afkChecker.js";
 
 const { EmbedBuilder } = Discord;
 
@@ -54,6 +56,7 @@ export function createSession(type, guildId, vcId, textId, creatorId, duration, 
     pomodoroCount: 0, // Number of completed focus sessions
     username, // For solo sessions, store username for VC name updates
     mutedUsers: new Set(), // Track users who have been muted
+    activityCheckInterval: null, // Interval for checking user activities
   };
 
   state.activeSessions.set(vcId, session);
@@ -79,6 +82,33 @@ export async function startPomodoroTimer(session, client) {
 
   // Mute all members in the voice channel
   await setVoiceChannelMute(client, session, true);
+
+  // Start activity tracking for this focus session
+  try {
+    const guild = client.guilds.cache.get(session.guildId);
+    const vc = guild?.channels.cache.get(session.voiceChannelId);
+
+    if (vc) {
+      const participants = vc.members.filter(m => !m.user.bot);
+      const userIds = Array.from(participants.keys());
+
+      if (userIds.length > 0) {
+        activityTracker.startTracking(session.voiceChannelId, userIds);
+
+        // Do immediate check to catch anyone already gaming when session starts
+        await activityTracker.checkAllUsers(client, session.voiceChannelId, session.guildId);
+
+        // Check activities every 30 seconds
+        session.activityCheckInterval = setInterval(() => {
+          activityTracker.checkAllUsers(client, session.voiceChannelId, session.guildId);
+        }, 30 * 1000);
+
+        console.log(`[Study] Started activity tracking for session ${session.id}`);
+      }
+    }
+  } catch (error) {
+    console.error(`[Study] Failed to start activity tracking for session ${session.id}:`, error);
+  }
 
   const focusMs = session.duration * 60 * 1000; // Convert minutes to milliseconds
   session.timer = setTimeout(async () => {
@@ -111,68 +141,53 @@ async function completeFocusSession(session, client) {
       // Increment pomodoro count
       session.pomodoroCount++;
 
+      // Stop activity tracking and get gaming times
+      if (session.activityCheckInterval) {
+        clearInterval(session.activityCheckInterval);
+        session.activityCheckInterval = null;
+      }
+
+      const gamingTimes = activityTracker.finalizeTracking(session.voiceChannelId);
+
       // Log completion for each participant and check for milestones
-      for (const [userId] of participants) {
-        const { milestone } = await studyStatsStore.recordSession(userId, session.guildId, session.duration);
-
-        // Announce milestone if reached
-        if (milestone) {
-          const userStats = studyStatsStore.getUserStats(userId, session.guildId);
-          await announceMilestone(client, session.guildId, userId, milestone, userStats);
-        }
-      }
-
-      // Calculate break time (1/5 of session duration)
-      const breakMinutes = Math.round(session.duration / 5);
-
-      // Send DM to each participant about break time
       for (const [userId, member] of participants) {
-        try {
-          const dmEmbed = new EmbedBuilder()
-            .setTitle("🎉 Study Session Complete!")
-            .setColor(0x57F287)
-            .setDescription(
-              `Great job on completing your **${session.duration}-minute** study session!\n\n` +
-              `**Session #${session.pomodoroCount}** completed!\n\n` +
-              `☕ **Time for a ${breakMinutes}-minute break!**\n` +
-              `Stretch, grab water, or rest your eyes.\n\n` +
-              `The next focus session will start automatically. 💪`
-            )
-            .setTimestamp();
+        const gamingMinutes = gamingTimes.get(userId) || 0;
 
-          await member.user.send({ embeds: [dmEmbed] });
-          console.log(`[Study] Sent break DM to ${member.user.username}`);
-        } catch (error) {
-          console.log(`[Study] Could not send DM to ${member.user.username}: ${error.message}`);
-        }
-      }
+        // Record session with gaming data (initially invalid, will be validated after AFK check)
+        const { milestone, sessionId } = await studyStatsStore.recordSession(
+          userId,
+          session.guildId,
+          session.duration,
+          {
+            valid: false, // Will be set to true only if AFK check passes AND no gaming
+            gamingMinutes: gamingMinutes,
+            afkCheckPassed: false
+          }
+        );
 
-      // Post summary
-      const mentions = Array.from(participants.keys()).map(id => `<@${id}>`).join(", ");
-      const embed = new EmbedBuilder()
-        .setTitle("✅ Focus Session Completed")
-        .setColor(0x57F287)
-        .setDescription(
-          `**Duration:** ${session.duration} minutes\n` +
-          `**Session:** #${session.pomodoroCount}\n` +
-          `**Participants:** ${participantCount}\n\n` +
-          `${mentions}\n\n` +
-          `☕ **${breakMinutes}-minute break starting now!**\n` +
-          `Next focus session starts automatically.`
-        )
-        .setTimestamp();
+        // Send AFK check DM
+        await afkChecker.sendAFKCheck(member.user, sessionId, session.guildId, session.duration);
 
-      if (textChannel) {
-        const msg = await textChannel.send({ embeds: [embed] });
-        setTimeout(() => msg.delete().catch(() => {}), DELETE_DELAY_MS);
+        // Note: Milestones will only be announced after AFK check passes
+        // So we don't announce them here anymore
       }
 
       console.log(`[Study] Focus session ${session.id} completed (Pomodoro #${session.pomodoroCount}) with ${participantCount} participants`);
 
-      // Log completion to log channel
+      // Check for gaming violations
+      const gamingViolations = [];
+      for (const [userId] of participants) {
+        const gamingMinutes = gamingTimes.get(userId) || 0;
+        if (gamingMinutes > 0) {
+          gamingViolations.push(`<@${userId}>: ${gamingMinutes} min`);
+        }
+      }
+
+      // Log completion to admin log channel (keep for tracking)
+      const mentions = Array.from(participants.keys()).map(id => `<@${id}>`).join(", ");
       const logEmbed = new EmbedBuilder()
         .setTitle("✅ Focus Session Completed")
-        .setColor(0x57F287)
+        .setColor(gamingViolations.length > 0 ? 0xFFA500 : 0x57F287) // Orange if gaming detected
         .addFields(
           { name: "Session ID", value: `#${session.id}`, inline: true },
           { name: "Type", value: session.type === "solo" ? "Solo" : "Group", inline: true },
@@ -182,6 +197,16 @@ async function completeFocusSession(session, client) {
           { name: "Users", value: mentions, inline: false }
         )
         .setTimestamp();
+
+      // Add gaming violations field if any detected
+      if (gamingViolations.length > 0) {
+        logEmbed.addFields({
+          name: "🎮 Gaming Detected",
+          value: gamingViolations.join("\n"),
+          inline: false
+        });
+      }
+
       await logToChannel(client, session.guildId, logEmbed);
 
       // Start break timer
@@ -286,23 +311,6 @@ async function completeBreakSession(session, client) {
           console.log(`[Study] Could not send DM to ${member.user.username}: ${error.message}`);
         }
       }
-
-      // Post announcement
-      const mentions = Array.from(participants.keys()).map(id => `<@${id}>`).join(", ");
-      const embed = new EmbedBuilder()
-        .setTitle("📚 Next Focus Session Starting!")
-        .setColor(0x5865F2)
-        .setDescription(
-          `Break complete!\n\n` +
-          `${mentions}\n\n` +
-          `**Session #${session.pomodoroCount + 1}** starting now!`
-        )
-        .setTimestamp();
-
-      if (textChannel) {
-        const msg = await textChannel.send({ embeds: [embed] });
-        setTimeout(() => msg.delete().catch(() => {}), DELETE_DELAY_MS);
-      }
     }
 
     // Start next focus session
@@ -341,6 +349,10 @@ export async function cancelSession(session, client, reason) {
     // Clear timers
     if (session.timer) clearTimeout(session.timer);
     if (session.emptyTimeout) clearTimeout(session.emptyTimeout);
+    if (session.activityCheckInterval) clearInterval(session.activityCheckInterval);
+
+    // Stop activity tracking
+    activityTracker.stopTracking(session.voiceChannelId);
 
     // Remove from active sessions
     state.activeSessions.delete(session.voiceChannelId);
