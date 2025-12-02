@@ -281,7 +281,7 @@ export async function handleShowStats(interaction) {
   );
   const totalAttempts = allSessions.length;
   const invalidSessions = allSessions.filter(s => !s.valid).length;
-  const validationRate = totalAttempts > 0 ? ((stats.totalSessions / totalAttempts) * 100).toFixed(1) : 100;
+  const validationRate = totalAttempts > 0 ? ((stats.totalSessions / totalAttempts) * 100).toFixed(1) + '%' : 'N/A';
 
   // Calculate average session length
   const avgSessionLength = stats.totalSessions > 0
@@ -307,7 +307,7 @@ export async function handleShowStats(interaction) {
       { name: "✅ Session Quality", value: "━━━━━━━━━━━━━━━", inline: false },
       { name: "Total Attempts", value: `${totalAttempts}`, inline: true },
       { name: "Failed Sessions", value: `${invalidSessions}`, inline: true },
-      { name: "Success Rate", value: `${validationRate}%`, inline: true },
+      { name: "Success Rate", value: `${validationRate}`, inline: true },
 
       { name: "🏆 Giveaway Stats", value: "━━━━━━━━━━━━━━━", inline: false },
       { name: "Total Wins", value: `${winStats.totalWins}`, inline: true },
