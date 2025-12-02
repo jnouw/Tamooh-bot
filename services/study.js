@@ -184,7 +184,7 @@ export function setupStudySystem(client) {
     }
   });
 
-  // Owner command to reset study stats/tickets
+  // Owner command to reset tickets (keeps hours intact)
   client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
     if (message.author.id !== OWNER_ID) return;
@@ -194,28 +194,28 @@ export function setupStudySystem(client) {
       const args = message.content.trim().split(/\s+/);
       const guildId = message.guild.id;
 
-      // Parse command: !resetstats [@user] [hours]
+      // Parse command: !resetstats [@user] [tickets]
       let targetUserId = null;
-      let hours = 0;
+      let tickets = 0;
       let resetAll = false;
 
       if (args.length === 1) {
-        // !resetstats - reset all to 0
+        // !resetstats - reset all to 0 (actually 8 base tickets)
         resetAll = true;
       } else if (args[1] === "all") {
-        // !resetstats all [hours]
+        // !resetstats all [tickets]
         resetAll = true;
-        hours = args[2] ? parseFloat(args[2]) : 0;
+        tickets = args[2] ? parseInt(args[2]) : 0;
       } else if (args[1].startsWith("<@")) {
-        // !resetstats @user [hours]
+        // !resetstats @user [tickets]
         targetUserId = args[1].replace(/[<@!>]/g, "");
-        hours = args[2] ? parseFloat(args[2]) : 0;
+        tickets = args[2] ? parseInt(args[2]) : 0;
       } else {
-        return message.reply("❌ Usage:\n`!resetstats` - Reset all users to 0\n`!resetstats @user` - Reset user to 0\n`!resetstats @user 10` - Set user to 10 hours\n`!resetstats all 5` - Set all users to 5 hours");
+        return message.reply("❌ Usage:\n`!resetstats` - Reset all users to 0 tickets\n`!resetstats @user` - Reset user to 0 tickets\n`!resetstats @user 50` - Set user to 50 tickets\n`!resetstats all 100` - Set all users to 100 tickets\n\n**Note:** Hours remain unchanged, only tickets are affected!");
       }
 
-      if (isNaN(hours) || hours < 0) {
-        return message.reply("❌ Hours must be a positive number");
+      if (isNaN(tickets) || tickets < 0) {
+        return message.reply("❌ Tickets must be a positive number");
       }
 
       const { studyStatsStore } = await import('./StudyStatsStore.js');
@@ -229,68 +229,28 @@ export function setupStudySystem(client) {
           return message.reply("❌ No users found with study stats");
         }
 
-        // Clear all sessions for this guild
-        studyStatsStore.data.sessions = studyStatsStore.data.sessions.filter(s => s.guildId !== guildId);
-
-        // If hours > 0, add new valid sessions
-        if (hours > 0) {
-          const minutes = Math.round(hours * 60);
-          for (const userId of uniqueUsers) {
-            studyStatsStore.data.sessions.push({
-              userId,
-              guildId,
-              minutes,
-              timestamp: Date.now(),
-              valid: true,
-              gamingMinutes: 0,
-              afkCheckPassed: true
-            });
-          }
+        // Set ticket override for all users
+        for (const userId of uniqueUsers) {
+          await studyStatsStore.setTicketOverride(userId, guildId, tickets);
         }
 
-        await studyStatsStore.save();
-
-        const tickets = hours === 0 ? 8 : (8 + Math.round(Math.sqrt(hours) * 8));
-        return message.reply(`✅ Reset stats for **${uniqueUsers.length}** users to **${hours}** hours (${tickets} tickets)`);
+        const displayTickets = tickets === 0 ? "removed (back to hour-based)" : `${tickets} tickets`;
+        return message.reply(`✅ Set ticket override for **${uniqueUsers.length}** users to **${displayTickets}**\n\n*Hours remain unchanged. Remove override with 0 tickets.*`);
 
       } else if (targetUserId) {
         // Reset specific user
-        const existingSessions = studyStatsStore.data.sessions.filter(
-          s => s.guildId === guildId && s.userId === targetUserId
-        );
+        const stats = studyStatsStore.getUserStats(targetUserId, guildId);
 
-        if (existingSessions.length === 0 && hours === 0) {
-          return message.reply("❌ User has no study stats to reset");
-        }
+        // Set ticket override
+        await studyStatsStore.setTicketOverride(targetUserId, guildId, tickets);
 
-        // Remove user's sessions
-        studyStatsStore.data.sessions = studyStatsStore.data.sessions.filter(
-          s => !(s.guildId === guildId && s.userId === targetUserId)
-        );
-
-        // If hours > 0, add new valid session
-        if (hours > 0) {
-          const minutes = Math.round(hours * 60);
-          studyStatsStore.data.sessions.push({
-            userId: targetUserId,
-            guildId,
-            minutes,
-            timestamp: Date.now(),
-            valid: true,
-            gamingMinutes: 0,
-            afkCheckPassed: true
-          });
-        }
-
-        await studyStatsStore.save();
-
-        const tickets = hours === 0 ? 8 : (8 + Math.round(Math.sqrt(hours) * 8));
-        return message.reply(`✅ Reset <@${targetUserId}>'s stats to **${hours}** hours (${tickets} tickets)`);
+        const displayTickets = tickets === 0 ? `removed (${8 + Math.round(Math.sqrt(stats.totalHours) * 8)} tickets from ${stats.totalHours}h)` : `${tickets} tickets`;
+        return message.reply(`✅ Set <@${targetUserId}>'s ticket override to **${displayTickets}**\n\n*Hours: ${stats.totalHours}h (unchanged)*`);
       }
 
     } catch (error) {
-      console.error("[Study] Error resetting stats:", error);
-      message.reply("❌ Error resetting stats. Check console for details.").catch(() => { });
+      console.error("[Study] Error resetting tickets:", error);
+      message.reply("❌ Error resetting tickets. Check console for details.").catch(() => { });
     }
   });
 

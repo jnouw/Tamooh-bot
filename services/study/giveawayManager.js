@@ -34,6 +34,12 @@ export async function runGiveaway(message, prizeName) {
       // Get user's session stats
       const stats = studyStatsStore.getUserStats(userId, guildId);
 
+      // Check for ticket override first, otherwise calculate from hours
+      const ticketOverride = studyStatsStore.getTicketOverride(userId, guildId);
+      const tickets = ticketOverride !== null
+        ? ticketOverride
+        : (8 + Math.round(Math.sqrt(stats.totalHours) * 8));
+
       // Add to eligible users with their ticket count
       // Formula: 8 base tickets + square root scaling (diminishing returns)
       // This gives everyone a baseline chance while rewarding study time fairly
@@ -43,7 +49,7 @@ export async function runGiveaway(message, prizeName) {
         displayName: member.displayName || member.user.username,
         sessions: stats.totalSessions,
         hours: stats.totalHours,
-        tickets: 8 + Math.round(Math.sqrt(stats.totalHours) * 8)
+        tickets: tickets
       });
     }
 

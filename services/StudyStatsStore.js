@@ -17,12 +17,16 @@ const __dirname = dirname(__filename);
  *   gamingMinutes (number) - time spent gaming during session,
  *   afkCheckPassed (boolean) - whether user responded to DM
  * }
+ * Ticket Overrides: Map of "guildId:userId" -> ticket count
  */
 export class StudyStatsStore {
   constructor(fileName = 'study_stats.json') {
     this.dir = join(__dirname, '../data');
     this.file = join(this.dir, fileName);
-    this.data = { sessions: [] };
+    this.data = {
+      sessions: [],
+      ticketOverrides: {} // { "guildId:userId": ticketCount }
+    };
     this.saveQueue = Promise.resolve();
     this.pendingSave = false;
 
@@ -43,11 +47,17 @@ export class StudyStatsStore {
       if (existsSync(this.file)) {
         const raw = await readFile(this.file, 'utf8');
         this.data = JSON.parse(raw);
+
+        // Backward compatibility: ensure ticketOverrides exists
+        if (!this.data.ticketOverrides) {
+          this.data.ticketOverrides = {};
+        }
+
         console.log(`[StudyStats] Loaded ${this.data.sessions.length} sessions`);
       }
     } catch (error) {
       console.error('[StudyStats] Failed to load:', error.message);
-      this.data = { sessions: [] };
+      this.data = { sessions: [], ticketOverrides: {} };
     }
   }
 
@@ -213,6 +223,53 @@ export class StudyStatsStore {
       .slice(0, limit);
 
     return leaderboard;
+  }
+
+  /**
+   * Set ticket override for a user (bypasses hour-based calculation)
+   * @param {string} userId - Discord user ID
+   * @param {string} guildId - Discord guild ID
+   * @param {number} tickets - Number of tickets (0 to remove override)
+   */
+  async setTicketOverride(userId, guildId, tickets) {
+    const key = `${guildId}:${userId}`;
+
+    if (tickets === 0) {
+      delete this.data.ticketOverrides[key];
+    } else {
+      this.data.ticketOverrides[key] = tickets;
+    }
+
+    await this.save();
+  }
+
+  /**
+   * Get ticket override for a user (returns null if no override)
+   * @param {string} userId - Discord user ID
+   * @param {string} guildId - Discord guild ID
+   * @returns {number|null} - Ticket count or null if using hour-based calculation
+   */
+  getTicketOverride(userId, guildId) {
+    const key = `${guildId}:${userId}`;
+    return this.data.ticketOverrides[key] || null;
+  }
+
+  /**
+   * Get all ticket overrides for a guild
+   * @param {string} guildId - Discord guild ID
+   * @returns {Map<string, number>} - Map of userId -> ticket count
+   */
+  getGuildTicketOverrides(guildId) {
+    const overrides = new Map();
+
+    for (const [key, tickets] of Object.entries(this.data.ticketOverrides)) {
+      const [keyGuildId, userId] = key.split(':');
+      if (keyGuildId === guildId) {
+        overrides.set(userId, tickets);
+      }
+    }
+
+    return overrides;
   }
 }
 
