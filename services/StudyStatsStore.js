@@ -18,6 +18,7 @@ const __dirname = dirname(__filename);
  *   afkCheckPassed (boolean) - whether user responded to DM
  * }
  * Giveaway Periods: Map of "guildId" -> period start timestamp
+ * Giveaway Wins: Array of { userId, guildId, timestamp, prizeName }
  */
 export class StudyStatsStore {
   constructor(fileName = 'study_stats.json') {
@@ -25,7 +26,8 @@ export class StudyStatsStore {
     this.file = join(this.dir, fileName);
     this.data = {
       sessions: [],
-      giveawayPeriods: {} // { "guildId": timestamp }
+      giveawayPeriods: {}, // { "guildId": timestamp }
+      giveawayWins: [] // [{ userId, guildId, timestamp, prizeName }]
     };
     this.saveQueue = Promise.resolve();
     this.pendingSave = false;
@@ -48,9 +50,12 @@ export class StudyStatsStore {
         const raw = await readFile(this.file, 'utf8');
         this.data = JSON.parse(raw);
 
-        // Backward compatibility: ensure giveawayPeriods exists
+        // Backward compatibility: ensure giveawayPeriods and giveawayWins exist
         if (!this.data.giveawayPeriods) {
           this.data.giveawayPeriods = {};
+        }
+        if (!this.data.giveawayWins) {
+          this.data.giveawayWins = [];
         }
 
         // Migrate legacy sessions: set valid=true for sessions without the field
@@ -73,7 +78,7 @@ export class StudyStatsStore {
       }
     } catch (error) {
       console.error('[StudyStats] Failed to load:', error.message);
-      this.data = { sessions: [], giveawayPeriods: {} };
+      this.data = { sessions: [], giveawayPeriods: {}, giveawayWins: [] };
     }
   }
 
@@ -311,15 +316,15 @@ export class StudyStatsStore {
 
   /**
    * Calculate tickets using period-based formula
-   * Formula: 10 + Math.round(√lifetimeHours × 5) + Math.round(currentPeriodHours × 2)
+   * Formula: 30 + Math.round(√lifetimeHours × 5) + Math.round(currentPeriodHours × 3)
    * @param {number} lifetimeHours - Total lifetime study hours
    * @param {number} currentPeriodHours - Hours studied in current giveaway period
    * @returns {number} - Calculated ticket count
    */
   calculateTickets(lifetimeHours, currentPeriodHours) {
-    const baseline = 10;
+    const baseline = 30;
     const lifetimeBonus = Math.round(Math.sqrt(lifetimeHours) * 5);
-    const currentPeriodBonus = Math.round(currentPeriodHours * 2);
+    const currentPeriodBonus = Math.round(currentPeriodHours * 3);
 
     return baseline + lifetimeBonus + currentPeriodBonus;
   }
@@ -371,6 +376,50 @@ export class StudyStatsStore {
       }))
       .filter(u => u.invalidSessions > 0)
       .sort((a, b) => b.invalidSessions - a.invalidSessions);
+  }
+
+  /**
+   * Record a giveaway win
+   * @param {string} userId - Discord user ID
+   * @param {string} guildId - Discord guild ID
+   * @param {string} prizeName - Name of the prize won
+   * @returns {Promise<void>}
+   */
+  async recordWin(userId, guildId, prizeName) {
+    this.data.giveawayWins.push({
+      userId,
+      guildId,
+      timestamp: Date.now(),
+      prizeName
+    });
+    await this.save();
+  }
+
+  /**
+   * Get user's giveaway win statistics
+   * @param {string} userId - Discord user ID
+   * @param {string} guildId - Discord guild ID
+   * @returns {{ totalWins: number, recentWins: Array, winRate: number }}
+   */
+  getUserWinStats(userId, guildId) {
+    const userWins = this.data.giveawayWins.filter(
+      w => w.userId === userId && w.guildId === guildId
+    );
+
+    // Get total number of giveaways in this guild
+    const totalGiveaways = new Set(
+      this.data.giveawayWins
+        .filter(w => w.guildId === guildId)
+        .map(w => w.timestamp)
+    ).size;
+
+    const winRate = totalGiveaways > 0 ? (userWins.length / totalGiveaways) * 100 : 0;
+
+    return {
+      totalWins: userWins.length,
+      recentWins: userWins.slice(-5).reverse(), // Last 5 wins, most recent first
+      winRate: Math.round(winRate * 100) / 100 // Two decimal places
+    };
   }
 }
 

@@ -268,17 +268,71 @@ export async function handleShowStats(interaction) {
   const userId = interaction.user.id;
   const guildId = interaction.guild.id;
 
+  // Get comprehensive stats
   const stats = studyStatsStore.getUserStats(userId, guildId);
+  const winStats = studyStatsStore.getUserWinStats(userId, guildId);
 
+  // Calculate tickets for next giveaway
+  const tickets = studyStatsStore.calculateTickets(stats.lifetimeHours, stats.currentPeriodHours);
+
+  // Get all sessions (valid and invalid) for validation metrics
+  const allSessions = studyStatsStore.data.sessions.filter(
+    s => s.userId === userId && s.guildId === guildId
+  );
+  const totalAttempts = allSessions.length;
+  const invalidSessions = allSessions.filter(s => !s.valid).length;
+  const validationRate = totalAttempts > 0 ? ((stats.totalSessions / totalAttempts) * 100).toFixed(1) : 100;
+
+  // Calculate average session length
+  const avgSessionLength = stats.totalSessions > 0
+    ? (stats.lifetimeHours / stats.totalSessions).toFixed(1)
+    : 0;
+
+  // Build the embed
   const embed = new EmbedBuilder()
-    .setTitle("📊 Your Study Stats")
+    .setTitle("📊 Your Comprehensive Study Stats")
     .setColor(0x5865F2)
+    .setDescription(`Here's your complete study journey breakdown!`)
     .addFields(
-      { name: "Total Sessions", value: `${stats.totalSessions}`, inline: true },
-      { name: "Total Minutes", value: `${stats.totalMinutes}`, inline: true },
-      { name: "Total Hours", value: `${stats.totalHours}`, inline: true }
+      { name: "📚 Study Summary", value: "━━━━━━━━━━━━━━━", inline: false },
+      { name: "Valid Sessions", value: `${stats.totalSessions}`, inline: true },
+      { name: "Lifetime Hours", value: `${stats.lifetimeHours}h`, inline: true },
+      { name: "Avg Session", value: `${avgSessionLength}h`, inline: true },
+
+      { name: "📅 Current Period", value: "━━━━━━━━━━━━━━━", inline: false },
+      { name: "Period Hours", value: `${stats.currentPeriodHours}h`, inline: true },
+      { name: "Period Sessions", value: `${allSessions.filter(s => s.valid && s.timestamp >= (studyStatsStore.data.giveawayPeriods[guildId] || 0)).length}`, inline: true },
+      { name: "Next Giveaway Tickets", value: `🎫 ${tickets}`, inline: true },
+
+      { name: "✅ Session Quality", value: "━━━━━━━━━━━━━━━", inline: false },
+      { name: "Total Attempts", value: `${totalAttempts}`, inline: true },
+      { name: "Failed Sessions", value: `${invalidSessions}`, inline: true },
+      { name: "Success Rate", value: `${validationRate}%`, inline: true },
+
+      { name: "🏆 Giveaway Stats", value: "━━━━━━━━━━━━━━━", inline: false },
+      { name: "Total Wins", value: `${winStats.totalWins}`, inline: true },
+      { name: "Win Rate", value: `${winStats.winRate}%`, inline: true },
+      { name: "Status", value: winStats.totalWins > 0 ? "🌟 Winner!" : "🎯 Keep studying!", inline: true }
     )
-    .setFooter({ text: getMotivationalMessage(stats.totalSessions) });
+    .setFooter({ text: getMotivationalMessage(stats.totalSessions) })
+    .setTimestamp();
+
+  // Add recent wins if any
+  if (winStats.recentWins.length > 0) {
+    const recentWinsList = winStats.recentWins
+      .slice(0, 3)
+      .map(w => {
+        const date = new Date(w.timestamp);
+        return `• ${w.prizeName} (${date.toLocaleDateString()})`;
+      })
+      .join('\n');
+
+    embed.addFields({
+      name: "🎁 Recent Wins",
+      value: recentWinsList,
+      inline: false
+    });
+  }
 
   await interaction.editReply({ embeds: [embed] });
 }
