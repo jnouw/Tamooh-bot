@@ -90,12 +90,6 @@ export async function runGiveaway(message, prizeName) {
     const usersWithFewerTickets = eligibleUsers.filter(u => u.tickets < winner.tickets).length;
     const percentileRank = Math.round(((eligibleUsers.length - usersWithFewerTickets) / eligibleUsers.length) * 100);
 
-    // Determine competition level
-    const avgTickets = totalTickets / eligibleUsers.length;
-    let competitionLevel = "Low";
-    if (avgTickets > 30) competitionLevel = "High";
-    else if (avgTickets > 20) competitionLevel = "Medium";
-
     // Create winner announcement embed
     const embed = new EmbedBuilder()
       .setTitle("🎉 Giveaway Winner!")
@@ -121,8 +115,7 @@ export async function runGiveaway(message, prizeName) {
         ) +
         `**Giveaway Summary:**\n` +
         `👥 Total Participants: ${eligibleUsers.length}\n` +
-        `🎫 Total Tickets in Pool: ${totalTickets}\n` +
-        `⚡ Competition Level: ${competitionLevel}`
+        `🎫 Total Tickets in Pool: ${totalTickets}`
       )
       .setFooter({ text: "More study time = More chances to win!" })
       .setTimestamp();
@@ -176,7 +169,7 @@ export async function runGiveaway(message, prizeName) {
         // Group users in rows of 5
         for (let i = 0; i < group.users.length; i += 5) {
           const chunk = group.users.slice(i, i + 5);
-          userListText += chunk.map(u => `<@${u.userId}>`).join(" | ") + "\n";
+          userListText += chunk.map(u => u.displayName).join(" | ") + "\n";
         }
         userListText += "\n";
       } else {
@@ -184,7 +177,7 @@ export async function runGiveaway(message, prizeName) {
         userListText += `━━━ ${group.title} ━━━\n`;
         for (const user of group.users) {
           const winPercentage = ((user.tickets / totalTickets) * 100).toFixed(2);
-          userListText += `**${currentRank}.** <@${user.userId}> — ⏱️ ${user.hours}h | 📊 ${winPercentage}%\n`;
+          userListText += `**${currentRank}.** ${user.displayName} — ⏱️ ${user.hours}h | 📊 ${winPercentage}%\n`;
           currentRank++;
         }
         userListText += "\n";
@@ -209,6 +202,9 @@ export async function runGiveaway(message, prizeName) {
       userListChunks.push(currentChunk);
     }
 
+    // Calculate total hours for footer
+    const totalHours = eligibleUsers.reduce((sum, user) => sum + user.hours, 0);
+
     // Send eligible users list
     for (let i = 0; i < userListChunks.length; i++) {
       const listEmbed = new EmbedBuilder()
@@ -217,7 +213,7 @@ export async function runGiveaway(message, prizeName) {
         .setDescription(userListChunks[i])
         .setFooter({
           text: i === userListChunks.length - 1
-            ? `Total: ${eligibleUsers.length} participants | ${totalTickets} tickets`
+            ? `Total: ${eligibleUsers.length} participants | ${totalHours} hours`
             : `Page ${i + 1}/${userListChunks.length}`
         });
 
