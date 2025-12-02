@@ -15,7 +15,8 @@ import { ScoreStore } from "./services/ScoreStore.js";
 import { setupStudySystem, handleSoloPomodoro, handleGroupQueue, handleShowStats, handleQueueLeave, handleRoleAdd, handleRoleRemove, handleStudyGroupJoin, recoverSessions, handleAFKCheck } from "./services/study.js";
 import { studyStatsStore } from "./services/StudyStatsStore.js";
 import { handleQuizStart } from "./handlers/quizHandlers.js";
-import { handleLeaderboard, handleMyStats, handleStudyLeaderboard, handleViolationStats, handleTicketOverride } from "./handlers/leaderboardHandlers.js";
+import { handleLeaderboard, handleMyStats, handleStudyLeaderboard, handleHelpCommand } from "./handlers/leaderboardHandlers.js";
+import { handleViolationsCommand, handleTicketsCommand } from "./handlers/adminCommandHandlers.js";
 import {
   handleMCQAnswer,
   handleOpenLineModal,
@@ -163,12 +164,47 @@ async function handleSlashCommand(interaction) {
     }
   } else if (interaction.commandName === "study_leaderboard") {
     await handleStudyLeaderboard(interaction);
-  } else if (interaction.commandName === "study_violations") {
-    await handleViolationStats(interaction);
-  } else if (interaction.commandName === "study_tickets") {
-    await handleTicketOverride(interaction);
+  } else if (interaction.commandName === "help") {
+    await handleHelpCommand(interaction);
   }
 }
+
+/**
+ * Handle ! prefix commands (admin only, hidden from slash command list)
+ */
+client.on("messageCreate", async (message) => {
+  // Ignore bots
+  if (message.author.bot) return;
+
+  // Only process commands starting with !
+  if (!message.content.startsWith("!")) return;
+
+  // Lock to Qimah guild if env is set
+  if (
+    process.env.QIMAH_GUILD_ID &&
+    message.guildId !== process.env.QIMAH_GUILD_ID
+  ) {
+    return;
+  }
+
+  const args = message.content.slice(1).trim().split(/\s+/);
+  const command = args.shift().toLowerCase();
+
+  try {
+    if (command === "violations") {
+      await handleViolationsCommand(message);
+    } else if (command === "tickets") {
+      await handleTicketsCommand(message, args);
+    }
+  } catch (error) {
+    logger.error("Message command error", {
+      error: error.message,
+      stack: error.stack,
+    });
+    console.error("Error handling message command:", error);
+    await message.reply("❌ An error occurred while processing the command.");
+  }
+});
 
 async function handleButton(interaction) {
   const customId = interaction.customId;

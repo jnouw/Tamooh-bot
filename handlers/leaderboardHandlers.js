@@ -289,3 +289,50 @@ export async function handleTicketOverride(interaction) {
     await interaction.reply({ embeds: [embed], ephemeral: true });
   }
 }
+
+/**
+ * Handle /help command - show all available commands
+ */
+export async function handleHelpCommand(interaction) {
+  const embed = new EmbedBuilder()
+    .setTitle("📚 Tamooh Bot - Command List")
+    .setColor(0x5865F2)
+    .addFields(
+      {
+        name: "📝 Quiz Commands (Slash)",
+        value:
+          "• `/quiz start` - Start a new quiz (MCQ, Find Error, Output, Code)\n" +
+          "• `/quiz leaderboard` - View top quiz performers\n" +
+          "• `/quiz stats` - View your quiz statistics",
+        inline: false,
+      },
+      {
+        name: "📖 Study Commands (Slash)",
+        value:
+          "• `/study_leaderboard` - View top 10 students by study time\n" +
+          "  Shows tickets, hours, and win chance for giveaways",
+        inline: false,
+      },
+      {
+        name: "🔧 Admin Commands (! prefix - hidden)",
+        value:
+          "• `!violations` - View AFK and gaming violation statistics\n" +
+          "• `!tickets list` - Show all ticket overrides\n" +
+          "• `!tickets clear` - Clear all ticket overrides\n" +
+          "• `!tickets clear @user` - Clear specific user override\n" +
+          "• `!tickets set @user <number>` - Set user tickets",
+        inline: false,
+      },
+      {
+        name: "🎟️ Ticket System",
+        value:
+          "**Formula:** `8 + √(hours) × 8`\n" +
+          "After each giveaway, ticket overrides are cleared but **your study hours stay forever**.\n" +
+          "More study time = More tickets = Higher win chance!",
+        inline: false,
+      }
+    )
+    .setFooter({ text: "Study hard and good luck! 💚" });
+
+  await interaction.reply({ embeds: [embed], ephemeral: true });
+}
