@@ -416,16 +416,6 @@ export async function recoverSessions(client) {
       const elapsed = Date.now() - session.startedAt;
       const remaining = phaseMs - elapsed;
 
-      // If session should have already completed
-      if (remaining <= 0) {
-        console.log(`[Study] Session ${session.id}: Timer already expired for ${sessionPhase} phase, completing now`);
-        // For now, just start a new timer since we extracted the complete functions
-        // This is a safe approach that ensures the session continues properly
-        await startPomodoroTimer(session, client);
-        recoveredCount++;
-        continue;
-      }
-
       // Check if there are any non-bot members in the voice channel
       const memberCount = vc.members.filter(m => !m.user.bot).size;
 
@@ -436,17 +426,37 @@ export async function recoverSessions(client) {
         continue;
       }
 
-      // Restart the timer for the remaining time
-      console.log(`[Study] Session ${session.id}: Recovering ${sessionPhase} phase with ${Math.round(remaining / 1000)}s remaining`);
-      await startPomodoroTimer(session, client);
+      // If session should have already completed
+      if (remaining <= 0) {
+        console.log(`[Study] Session ${session.id}: Timer already expired for ${sessionPhase} phase, completing now`);
 
-      // Mute all members if in focus phase
-      if (sessionPhase === "focus") {
-        await setVoiceChannelMute(client, session, true);
+        // Import the phase completion functions
+        const sessionManager = await import('./study/sessionManager.js');
+
+        if (sessionPhase === "focus") {
+          // Focus phase expired - complete it (will start break)
+          await sessionManager.completeFocusSessionPublic(session, client);
+        } else {
+          // Break phase expired - complete it (will start next focus)
+          await sessionManager.completeBreakSessionPublic(session, client);
+        }
+
+        recoveredCount++;
+        continue;
       }
 
-      // Update VC name to reflect current phase
-      await updateVoiceChannelName(client, session);
+      // Restart the timer for the remaining time based on phase
+      console.log(`[Study] Session ${session.id}: Recovering ${sessionPhase} phase with ${Math.round(remaining / 1000)}s remaining`);
+
+      if (sessionPhase === "focus") {
+        // Restore focus phase
+        const sessionManager = await import('./study/sessionManager.js');
+        await sessionManager.startPomodoroTimer(session, client);
+      } else {
+        // Restore break phase
+        const sessionManager = await import('./study/sessionManager.js');
+        await sessionManager.startBreakTimer(session, client);
+      }
 
       recoveredCount++;
     } catch (error) {

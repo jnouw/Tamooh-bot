@@ -120,6 +120,10 @@ export async function startPomodoroTimer(session, client) {
 /**
  * Complete a focus session and start break
  */
+export async function completeFocusSessionPublic(session, client) {
+  return completeFocusSession(session, client);
+}
+
 async function completeFocusSession(session, client) {
   console.log(`[Study] Completing focus session ${session.id}`);
 
@@ -248,7 +252,7 @@ async function completeFocusSession(session, client) {
 /**
  * Start break timer (duration is 1/5 of focus duration)
  */
-async function startBreakTimer(session, client) {
+export async function startBreakTimer(session, client) {
   // Clear the focus timer
   if (session.timer) clearTimeout(session.timer);
 
@@ -277,6 +281,10 @@ async function startBreakTimer(session, client) {
 /**
  * Complete break and start next focus session
  */
+export async function completeBreakSessionPublic(session, client) {
+  return completeBreakSession(session, client);
+}
+
 async function completeBreakSession(session, client) {
   console.log(`[Study] Completing break for session ${session.id}, starting next focus session`);
 
