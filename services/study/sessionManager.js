@@ -174,11 +174,20 @@ async function completeFocusSession(session, client) {
 
       console.log(`[Study] Focus session ${session.id} completed (Pomodoro #${session.pomodoroCount}) with ${participantCount} participants`);
 
+      // Check for gaming violations
+      const gamingViolations = [];
+      for (const [userId] of participants) {
+        const gamingMinutes = gamingTimes.get(userId) || 0;
+        if (gamingMinutes > 0) {
+          gamingViolations.push(`<@${userId}>: ${gamingMinutes} min`);
+        }
+      }
+
       // Log completion to admin log channel (keep for tracking)
       const mentions = Array.from(participants.keys()).map(id => `<@${id}>`).join(", ");
       const logEmbed = new EmbedBuilder()
         .setTitle("✅ Focus Session Completed")
-        .setColor(0x57F287)
+        .setColor(gamingViolations.length > 0 ? 0xFFA500 : 0x57F287) // Orange if gaming detected
         .addFields(
           { name: "Session ID", value: `#${session.id}`, inline: true },
           { name: "Type", value: session.type === "solo" ? "Solo" : "Group", inline: true },
@@ -188,6 +197,16 @@ async function completeFocusSession(session, client) {
           { name: "Users", value: mentions, inline: false }
         )
         .setTimestamp();
+
+      // Add gaming violations field if any detected
+      if (gamingViolations.length > 0) {
+        logEmbed.addFields({
+          name: "🎮 Gaming Detected",
+          value: gamingViolations.join("\n"),
+          inline: false
+        });
+      }
+
       await logToChannel(client, session.guildId, logEmbed);
 
       // Start break timer
