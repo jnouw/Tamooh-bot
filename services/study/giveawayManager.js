@@ -203,7 +203,9 @@ export async function runGiveaway(message, prizeName) {
     }
 
     // Calculate total hours for footer
-    const totalHours = eligibleUsers.reduce((sum, user) => sum + user.hours, 0);
+    const totalHours = Math.round(eligibleUsers.reduce((sum, user) => sum + user.hours, 0) * 100) / 100;
+    const days = Math.floor(totalHours / 24);
+    const remainingHours = Math.round((totalHours % 24) * 100) / 100;
 
     // Send eligible users list
     for (let i = 0; i < userListChunks.length; i++) {
@@ -213,7 +215,7 @@ export async function runGiveaway(message, prizeName) {
         .setDescription(userListChunks[i])
         .setFooter({
           text: i === userListChunks.length - 1
-            ? `Total: ${eligibleUsers.length} participants | ${totalHours} hours`
+            ? `Total: ${eligibleUsers.length} participants | ${totalHours} hours\nThat's ${days} days and ${remainingHours} hours of study time!`
             : `Page ${i + 1}/${userListChunks.length}`
         });
 
