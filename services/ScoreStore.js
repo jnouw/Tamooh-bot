@@ -16,10 +16,15 @@ export class ScoreStore {
     this.data = { results: [] };
     this.saveQueue = Promise.resolve();
     this.pendingSave = false;
+    this.initializing = true;
 
-    this.ready = this.init().catch(error => {
-      logger.error('ScoreStore failed to initialize', { error: error.message });
-    });
+    this.ready = this.init()
+      .catch(error => {
+        logger.error('ScoreStore failed to initialize', { error: error.message });
+      })
+      .finally(() => {
+        this.initializing = false;
+      });
   }
 
   /**
@@ -60,7 +65,9 @@ export class ScoreStore {
    * Save data to file with backup
    */
   async save() {
-    await this.ready;
+    if (!this.initializing) {
+      await this.ready;
+    }
 
     // Queue saves to prevent concurrent writes
     this.saveQueue = this.saveQueue.then(async () => {
@@ -92,7 +99,9 @@ export class ScoreStore {
    * Save with debouncing
    */
   async saveDebounced() {
-    await this.ready;
+    if (!this.initializing) {
+      await this.ready;
+    }
 
     if (this.pendingSave) return;
 
