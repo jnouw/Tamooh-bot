@@ -35,7 +35,7 @@ export async function runGiveaway(message, prizeName) {
       const stats = studyStatsStore.getUserStats(userId, guildId);
 
       // Calculate tickets using new period-based formula
-      // Formula: 10 + √lifetimeHours × 5 + currentPeriodHours × 2
+      // Formula: 30 + √lifetimeHours × 5 + currentPeriodHours × 3
       // This rewards recent study more while respecting lifetime effort
       const tickets = studyStatsStore.calculateTickets(stats.lifetimeHours, stats.currentPeriodHours);
 
@@ -70,6 +70,9 @@ export async function runGiveaway(message, prizeName) {
 
     // Calculate total tickets
     const totalTickets = weightedPool.length;
+
+    // Record the win
+    await studyStatsStore.recordWin(winner.userId, guildId, prizeName);
 
     // 🥁 DRAMATIC COUNTDOWN! 🥁
     const drumRollMsg = await message.channel.send("🥁 **Selecting the winner...**");
