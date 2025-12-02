@@ -166,7 +166,9 @@ export async function handleGroupQueue(interaction, client, duration) {
             content: `⏰ ${duration}min queue timeout! Starting session with ${state.groupQueues[duration].size} ${state.groupQueues[duration].size === 1 ? 'person' : 'people'}...`
           });
           // Auto-delete timeout message after 1 minute
-          setTimeout(() => msg.delete().catch(() => {}), DELETE_DELAY_MS);
+          setTimeout(() => msg.delete().catch(err => {
+            console.log(`[Study] Could not delete queue timeout message: ${err.message}`);
+          }), DELETE_DELAY_MS);
           await startGroupSession(interaction.guild, interaction.channel, client, duration);
         }
       } catch (error) {
@@ -212,7 +214,9 @@ export async function handleGroupQueue(interaction, client, duration) {
       });
 
       // Auto-delete queue announcements after 1 minute
-      setTimeout(() => msg.delete().catch(() => {}), DELETE_DELAY_MS);
+      setTimeout(() => msg.delete().catch(err => {
+        console.log(`[Study] Could not delete queue announcement: ${err.message}`);
+      }), DELETE_DELAY_MS);
 
     } catch (error) {
       // If role ping fails (missing permissions), send without role ping
@@ -222,7 +226,9 @@ export async function handleGroupQueue(interaction, client, duration) {
           content: `👥 <@${userId}> joined the ${duration}min study queue! **(${queueSize}/${GROUP_QUEUE_THRESHOLD})**\n\nJoin now to start a group session!`,
           allowedMentions: { users: [userId] }
         });
-        setTimeout(() => msg.delete().catch(() => {}), DELETE_DELAY_MS);
+        setTimeout(() => msg.delete().catch(err => {
+          console.log(`[Study] Could not delete queue announcement (fallback): ${err.message}`);
+        }), DELETE_DELAY_MS);
       } else {
         console.error('[Study] Failed to send queue announcement:', error);
       }
@@ -332,7 +338,9 @@ export async function handleQueueLeave(interaction) {
       allowedMentions: { users: [userId] }
     });
     // Auto-delete leave message after 1 minute
-    setTimeout(() => msg.delete().catch(() => {}), DELETE_DELAY_MS);
+    setTimeout(() => msg.delete().catch(err => {
+      console.log(`[Study] Could not delete leave message: ${err.message}`);
+    }), DELETE_DELAY_MS);
   }
 }
 

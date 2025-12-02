@@ -81,7 +81,9 @@ export async function startGroupSession(guild, textChannel, client, duration) {
     });
 
     // Auto-delete start message after 1 minute
-    setTimeout(() => msg.delete().catch(() => {}), DELETE_DELAY_MS);
+    setTimeout(() => msg.delete().catch(err => {
+      console.log(`[Study] Could not delete queue start message: ${err.message}`);
+    }), DELETE_DELAY_MS);
 
     // Start timer
     await startPomodoroTimer(session, client);
