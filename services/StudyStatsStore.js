@@ -17,7 +17,7 @@ const __dirname = dirname(__filename);
  *   gamingMinutes (number) - time spent gaming during session,
  *   afkCheckPassed (boolean) - whether user responded to DM
  * }
- * Ticket Overrides: Map of "guildId:userId" -> ticket count
+ * Giveaway Periods: Map of "guildId" -> period start timestamp
  */
 export class StudyStatsStore {
   constructor(fileName = 'study_stats.json') {
@@ -25,7 +25,7 @@ export class StudyStatsStore {
     this.file = join(this.dir, fileName);
     this.data = {
       sessions: [],
-      ticketOverrides: {} // { "guildId:userId": ticketCount }
+      giveawayPeriods: {} // { "guildId": timestamp }
     };
     this.saveQueue = Promise.resolve();
     this.pendingSave = false;
@@ -48,9 +48,9 @@ export class StudyStatsStore {
         const raw = await readFile(this.file, 'utf8');
         this.data = JSON.parse(raw);
 
-        // Backward compatibility: ensure ticketOverrides exists
-        if (!this.data.ticketOverrides) {
-          this.data.ticketOverrides = {};
+        // Backward compatibility: ensure giveawayPeriods exists
+        if (!this.data.giveawayPeriods) {
+          this.data.giveawayPeriods = {};
         }
 
         // Migrate legacy sessions: set valid=true for sessions without the field
@@ -73,7 +73,7 @@ export class StudyStatsStore {
       }
     } catch (error) {
       console.error('[StudyStats] Failed to load:', error.message);
-      this.data = { sessions: [], ticketOverrides: {} };
+      this.data = { sessions: [], giveawayPeriods: {} };
     }
   }
 
@@ -161,7 +161,7 @@ export class StudyStatsStore {
 
     // Check for milestone (only if session is valid)
     const milestone = valid
-      ? this.checkMilestone(oldStats.totalHours, newStats.totalHours, oldStats.totalSessions)
+      ? this.checkMilestone(oldStats.lifetimeHours, newStats.lifetimeHours, oldStats.totalSessions)
       : null;
 
     await this.save();
@@ -194,7 +194,7 @@ export class StudyStatsStore {
       let milestone = null;
       if (!wasValid && session.valid) {
         const newStats = this.getUserStats(session.userId, session.guildId);
-        milestone = this.checkMilestone(oldStats.totalHours, newStats.totalHours, oldStats.totalSessions);
+        milestone = this.checkMilestone(oldStats.lifetimeHours, newStats.lifetimeHours, oldStats.totalSessions);
       }
 
       await this.save();
@@ -204,101 +204,173 @@ export class StudyStatsStore {
   }
 
   /**
-   * Get user stats (total sessions, total minutes) - only counts VALID sessions
+   * Get user stats with lifetime and current period hours
    * @param {string} userId - Discord user ID
    * @param {string} guildId - Discord guild ID
-   * @returns {{ totalSessions: number, totalMinutes: number, totalHours: number }}
+   * @returns {{ totalSessions: number, totalMinutes: number, lifetimeHours: number, currentPeriodHours: number }}
    */
   getUserStats(userId, guildId) {
+    const periodStart = this.data.giveawayPeriods[guildId] || 0;
+
     const userSessions = this.data.sessions.filter(
       s => s.userId === userId && s.guildId === guildId && s.valid === true
     );
 
     const totalSessions = userSessions.length;
     const totalMinutes = userSessions.reduce((sum, s) => sum + s.minutes, 0);
-    const totalHours = Math.round(totalMinutes / 60 * 10) / 10; // One decimal
+    const lifetimeHours = Math.round(totalMinutes / 60 * 10) / 10; // One decimal
 
-    return { totalSessions, totalMinutes, totalHours };
+    // Current period: sessions after the period start timestamp
+    const currentPeriodMinutes = userSessions
+      .filter(s => s.timestamp >= periodStart)
+      .reduce((sum, s) => sum + s.minutes, 0);
+    const currentPeriodHours = Math.round(currentPeriodMinutes / 60 * 10) / 10;
+
+    return { totalSessions, totalMinutes, lifetimeHours, currentPeriodHours };
   }
 
   /**
-   * Get leaderboard (top users by total minutes) - only counts VALID sessions
+   * Get leaderboard with lifetime and current period hours
    * @param {string} guildId - Discord guild ID
    * @param {number} limit - Max number of users to return (default 10)
-   * @returns {Array<{userId: string, totalMinutes: number, totalHours: number, totalSessions: number}>}
+   * @returns {Array<{userId: string, totalMinutes: number, lifetimeHours: number, currentPeriodHours: number, totalSessions: number}>}
    */
   getLeaderboard(guildId, limit = 10) {
+    const periodStart = this.data.giveawayPeriods[guildId] || 0;
+
     // Group by userId (only valid sessions)
     const userMap = new Map();
 
     this.data.sessions
       .filter(s => s.guildId === guildId && s.valid === true)
       .forEach(s => {
-        const current = userMap.get(s.userId) || { totalMinutes: 0, totalSessions: 0 };
+        const current = userMap.get(s.userId) || {
+          totalMinutes: 0,
+          currentPeriodMinutes: 0,
+          totalSessions: 0
+        };
         current.totalMinutes += s.minutes;
         current.totalSessions += 1;
+
+        // Add to current period if session is after period start
+        if (s.timestamp >= periodStart) {
+          current.currentPeriodMinutes += s.minutes;
+        }
+
         userMap.set(s.userId, current);
       });
 
-    // Convert to array and sort
+    // Convert to array and sort by CURRENT PERIOD (most relevant)
     const leaderboard = Array.from(userMap.entries())
       .map(([userId, stats]) => ({
         userId,
         totalMinutes: stats.totalMinutes,
-        totalHours: Math.round(stats.totalMinutes / 60 * 10) / 10,
+        lifetimeHours: Math.round(stats.totalMinutes / 60 * 10) / 10,
+        currentPeriodHours: Math.round(stats.currentPeriodMinutes / 60 * 10) / 10,
         totalSessions: stats.totalSessions
       }))
-      .sort((a, b) => b.totalMinutes - a.totalMinutes)
+      .sort((a, b) => b.currentPeriodHours - a.currentPeriodHours) // Sort by current period
       .slice(0, limit);
 
     return leaderboard;
   }
 
   /**
-   * Set ticket override for a user (bypasses hour-based calculation)
-   * @param {string} userId - Discord user ID
+   * Reset giveaway period for a guild (soft reset for fair competition)
+   * This resets current period hours to 0 but keeps lifetime hours forever
    * @param {string} guildId - Discord guild ID
-   * @param {number} tickets - Number of tickets (0 to remove override)
+   * @returns {Promise<{ usersAffected: number, periodStartDate: string }>}
    */
-  async setTicketOverride(userId, guildId, tickets) {
-    const key = `${guildId}:${userId}`;
+  async resetGiveawayPeriod(guildId) {
+    const now = Date.now();
+    this.data.giveawayPeriods[guildId] = now;
 
-    if (tickets === 0) {
-      delete this.data.ticketOverrides[key];
-    } else {
-      this.data.ticketOverrides[key] = tickets;
-    }
+    // Count unique users who had sessions
+    const usersAffected = new Set(
+      this.data.sessions
+        .filter(s => s.guildId === guildId && s.valid === true)
+        .map(s => s.userId)
+    ).size;
 
     await this.save();
+
+    return {
+      usersAffected,
+      periodStartDate: new Date(now).toISOString()
+    };
   }
 
   /**
-   * Get ticket override for a user (returns null if no override)
-   * @param {string} userId - Discord user ID
+   * Get current giveaway period start time
    * @param {string} guildId - Discord guild ID
-   * @returns {number|null} - Ticket count or null if using hour-based calculation
+   * @returns {number} - Timestamp of period start (0 if never reset)
    */
-  getTicketOverride(userId, guildId) {
-    const key = `${guildId}:${userId}`;
-    return this.data.ticketOverrides[key] !== undefined ? this.data.ticketOverrides[key] : null;
+  getGiveawayPeriodStart(guildId) {
+    return this.data.giveawayPeriods[guildId] || 0;
   }
 
   /**
-   * Get all ticket overrides for a guild
-   * @param {string} guildId - Discord guild ID
-   * @returns {Map<string, number>} - Map of userId -> ticket count
+   * Calculate tickets using period-based formula
+   * Formula: 10 + Math.round(√lifetimeHours × 5) + Math.round(currentPeriodHours × 2)
+   * @param {number} lifetimeHours - Total lifetime study hours
+   * @param {number} currentPeriodHours - Hours studied in current giveaway period
+   * @returns {number} - Calculated ticket count
    */
-  getGuildTicketOverrides(guildId) {
-    const overrides = new Map();
+  calculateTickets(lifetimeHours, currentPeriodHours) {
+    const baseline = 10;
+    const lifetimeBonus = Math.round(Math.sqrt(lifetimeHours) * 5);
+    const currentPeriodBonus = Math.round(currentPeriodHours * 2);
 
-    for (const [key, tickets] of Object.entries(this.data.ticketOverrides)) {
-      const [keyGuildId, userId] = key.split(':');
-      if (keyGuildId === guildId) {
-        overrides.set(userId, tickets);
-      }
-    }
+    return baseline + lifetimeBonus + currentPeriodBonus;
+  }
 
-    return overrides;
+  /**
+   * Get violation statistics for users (AFK and gaming)
+   * @param {string} guildId - Discord guild ID
+   * @returns {Array<{userId: string, totalSessions: number, invalidSessions: number, afkViolations: number, gamingViolations: number, validSessions: number}>}
+   */
+  getViolationStats(guildId) {
+    // Group by userId
+    const userMap = new Map();
+
+    this.data.sessions
+      .filter(s => s.guildId === guildId)
+      .forEach(s => {
+        const current = userMap.get(s.userId) || {
+          totalSessions: 0,
+          validSessions: 0,
+          invalidSessions: 0,
+          afkViolations: 0,
+          gamingViolations: 0
+        };
+
+        current.totalSessions += 1;
+
+        if (s.valid) {
+          current.validSessions += 1;
+        } else {
+          current.invalidSessions += 1;
+
+          // Count violation types
+          if (!s.afkCheckPassed) {
+            current.afkViolations += 1;
+          }
+          if (s.gamingMinutes > 0) {
+            current.gamingViolations += 1;
+          }
+        }
+
+        userMap.set(s.userId, current);
+      });
+
+    // Convert to array and filter users with violations
+    return Array.from(userMap.entries())
+      .map(([userId, stats]) => ({
+        userId,
+        ...stats
+      }))
+      .filter(u => u.invalidSessions > 0)
+      .sort((a, b) => b.invalidSessions - a.invalidSessions);
   }
 }
 

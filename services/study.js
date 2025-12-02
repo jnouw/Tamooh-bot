@@ -184,75 +184,9 @@ export function setupStudySystem(client) {
     }
   });
 
-  // Owner command to reset tickets (keeps hours intact)
-  client.on(Events.MessageCreate, async (message) => {
-    if (message.author.bot) return;
-    if (message.author.id !== OWNER_ID) return;
-    if (!message.content.trim().startsWith("!resetstats")) return;
-
-    try {
-      const args = message.content.trim().split(/\s+/);
-      const guildId = message.guild.id;
-
-      // Parse command: !resetstats [@user] [tickets]
-      let targetUserId = null;
-      let tickets = 0;
-      let resetAll = false;
-
-      if (args.length === 1) {
-        // !resetstats - reset all to 0 (actually 8 base tickets)
-        resetAll = true;
-      } else if (args[1] === "all") {
-        // !resetstats all [tickets]
-        resetAll = true;
-        tickets = args[2] ? parseInt(args[2]) : 0;
-      } else if (args[1].startsWith("<@")) {
-        // !resetstats @user [tickets]
-        targetUserId = args[1].replace(/[<@!>]/g, "");
-        tickets = args[2] ? parseInt(args[2]) : 0;
-      } else {
-        return message.reply("❌ Usage:\n`!resetstats` - Reset all users to 0 tickets\n`!resetstats @user` - Reset user to 0 tickets\n`!resetstats @user 50` - Set user to 50 tickets\n`!resetstats all 100` - Set all users to 100 tickets\n\n**Note:** Hours remain unchanged, only tickets are affected!");
-      }
-
-      if (isNaN(tickets) || tickets < 0) {
-        return message.reply("❌ Tickets must be a positive number");
-      }
-
-      const { studyStatsStore } = await import('./StudyStatsStore.js');
-
-      if (resetAll) {
-        // Reset all users
-        const sessions = studyStatsStore.data.sessions.filter(s => s.guildId === guildId);
-        const uniqueUsers = [...new Set(sessions.map(s => s.userId))];
-
-        if (uniqueUsers.length === 0) {
-          return message.reply("❌ No users found with study stats");
-        }
-
-        // Set ticket override for all users
-        for (const userId of uniqueUsers) {
-          await studyStatsStore.setTicketOverride(userId, guildId, tickets);
-        }
-
-        const displayTickets = tickets === 0 ? "removed (back to hour-based)" : `${tickets} tickets`;
-        return message.reply(`✅ Set ticket override for **${uniqueUsers.length}** users to **${displayTickets}**\n\n*Hours remain unchanged. Remove override with 0 tickets.*`);
-
-      } else if (targetUserId) {
-        // Reset specific user
-        const stats = studyStatsStore.getUserStats(targetUserId, guildId);
-
-        // Set ticket override
-        await studyStatsStore.setTicketOverride(targetUserId, guildId, tickets);
-
-        const displayTickets = tickets === 0 ? `removed (${8 + Math.round(Math.sqrt(stats.totalHours) * 8)} tickets from ${stats.totalHours}h)` : `${tickets} tickets`;
-        return message.reply(`✅ Set <@${targetUserId}>'s ticket override to **${displayTickets}**\n\n*Hours: ${stats.totalHours}h (unchanged)*`);
-      }
-
-    } catch (error) {
-      console.error("[Study] Error resetting tickets:", error);
-      message.reply("❌ Error resetting tickets. Check console for details.").catch(() => { });
-    }
-  });
+  // Legacy !resetstats command removed - replaced by !reset_period
+  // The period-based ticket system no longer uses manual ticket overrides
+  // Use !reset_period command (in adminCommandHandlers.js) to reset giveaway periods
 
   // Voice state updates (handle empty rooms, mute new joiners, unmute leavers)
   client.on(Events.VoiceStateUpdate, async (oldState, newState) => {

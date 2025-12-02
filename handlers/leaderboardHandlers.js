@@ -1,6 +1,6 @@
 import Discord from "discord.js";
 import { studyStatsStore } from "../services/StudyStatsStore.js";
-import { STUDY_ROLE_ID, TAMOOH_ROLE_ID } from "../services/study/config.js";
+import { STUDY_ROLE_ID, TAMOOH_ROLE_ID, OWNER_ID } from "../services/study/config.js";
 
 const { EmbedBuilder } = Discord;
 
@@ -91,13 +91,9 @@ export async function handleStudyLeaderboard(interaction) {
     return;
   }
 
-  // Calculate tickets for leaderboard users
+  // Calculate tickets for leaderboard users using new period-based formula
   const usersWithTickets = leaderboard.map(entry => {
-    // Check for ticket override first, otherwise calculate from hours
-    const ticketOverride = studyStatsStore.getTicketOverride(entry.userId, interaction.guildId);
-    const tickets = ticketOverride !== null
-      ? ticketOverride
-      : (8 + Math.round(Math.sqrt(entry.totalHours) * 8));
+    const tickets = studyStatsStore.calculateTickets(entry.lifetimeHours, entry.currentPeriodHours);
 
     return {
       ...entry,
@@ -124,16 +120,13 @@ export async function handleStudyLeaderboard(interaction) {
     // Get user's session stats
     const stats = studyStatsStore.getUserStats(userId, interaction.guildId);
 
-    // Calculate tickets (override or formula)
-    const ticketOverride = studyStatsStore.getTicketOverride(userId, interaction.guildId);
-    const tickets = ticketOverride !== null
-      ? ticketOverride
-      : (8 + Math.round(Math.sqrt(stats.totalHours) * 8));
+    // Calculate tickets using new formula
+    const tickets = studyStatsStore.calculateTickets(stats.lifetimeHours, stats.currentPeriodHours);
 
     totalTickets += tickets;
   }
 
-  // Create leaderboard lines with tickets, hours, and ACCURATE win chance
+  // Create leaderboard lines with tickets, lifetime hours, current period hours, and win chance
   const lines = usersWithTickets.map((entry, i) => {
     const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `**${i + 1}.**`;
     const winChance = totalTickets > 0
@@ -141,14 +134,121 @@ export async function handleStudyLeaderboard(interaction) {
       : "0.00";
 
     return `${medal} <@${entry.userId}>\n` +
-           `   🎫 ${entry.tickets} tickets | ⏱️ ${entry.totalHours}h | 🎲 ${winChance}% chance`;
+           `   🎫 ${entry.tickets} tickets | 📚 ${entry.lifetimeHours}h lifetime | 🔥 ${entry.currentPeriodHours}h this period\n` +
+           `   🎲 ${winChance}% win chance`;
   });
+
+  const periodStart = studyStatsStore.getGiveawayPeriodStart(interaction.guildId);
+  const periodInfo = periodStart > 0
+    ? `Current period started: ${new Date(periodStart).toLocaleDateString()}`
+    : "No period reset yet - all hours count equally";
 
   const embed = new EmbedBuilder()
     .setTitle("📚 Study Leaderboard - Top 10")
     .setDescription(lines.join("\n\n"))
     .setColor(0x5865F2)
-    .setFooter({ text: "More study time = More tickets = Higher win chance!" });
+    .setFooter({ text: `${periodInfo} | Formula: 10 + √lifetime×5 + current×2` });
 
   await interaction.editReply({ embeds: [embed] });
+}
+
+/**
+ * Handle violation stats command (admin only)
+ */
+export async function handleViolationStats(interaction) {
+  // Check if user is admin/owner
+  if (interaction.user.id !== OWNER_ID && !interaction.member.permissions.has("Administrator")) {
+    await interaction.reply({
+      content: "❌ This command is only available to administrators.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  const violationStats = studyStatsStore.getViolationStats(interaction.guildId);
+
+  if (violationStats.length === 0) {
+    await interaction.editReply({
+      content: "✅ No violations found! All users have passed their AFK checks and avoided gaming during study sessions.",
+    });
+    return;
+  }
+
+  // Create detailed violation report
+  const lines = violationStats.map((user, i) => {
+    const violations = [];
+    if (user.afkViolations > 0) {
+      violations.push(`❌ ${user.afkViolations} AFK (no DM response)`);
+    }
+    if (user.gamingViolations > 0) {
+      violations.push(`🎮 ${user.gamingViolations} Gaming detected`);
+    }
+
+    const validRate = ((user.validSessions / user.totalSessions) * 100).toFixed(1);
+
+    return `**${i + 1}.** <@${user.userId}>\n` +
+           `   📊 Sessions: ${user.validSessions} valid / ${user.totalSessions} total (${validRate}%)\n` +
+           `   ⚠️ Violations: ${violations.join(", ")}`;
+  });
+
+  const embed = new EmbedBuilder()
+    .setTitle("⚠️ Study Session Violations Report")
+    .setDescription(lines.join("\n\n"))
+    .setColor(0xED4245)
+    .setFooter({ text: `Total users with violations: ${violationStats.length}` });
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
+
+/**
+ * Handle /help command - show all available commands
+ */
+export async function handleHelpCommand(interaction) {
+  const embed = new EmbedBuilder()
+    .setTitle("📚 Tamooh Bot - Command List")
+    .setColor(0x5865F2)
+    .addFields(
+      {
+        name: "📝 Quiz Commands (Slash)",
+        value:
+          "• `/quiz start` - Start a new quiz (MCQ, Find Error, Output, Code)\n" +
+          "• `/quiz leaderboard` - View top quiz performers\n" +
+          "• `/quiz stats` - View your quiz statistics",
+        inline: false,
+      },
+      {
+        name: "📖 Study Commands (Slash)",
+        value:
+          "• `/study_leaderboard` - View top 10 students by study time\n" +
+          "  Shows tickets, lifetime hours, current period hours, and win chance",
+        inline: false,
+      },
+      {
+        name: "🔧 Admin Commands (! prefix - hidden)",
+        value:
+          "• `!violations` - View AFK and gaming violation statistics\n" +
+          "• `!reset_period` - Reset giveaway period (soft reset for new competition)",
+        inline: false,
+      },
+      {
+        name: "🎟️ Period-Based Ticket System",
+        value:
+          "**Formula:** `10 + √(lifetime hours) × 5 + (current period hours) × 2`\n\n" +
+          "**How it works:**\n" +
+          "• Lifetime hours = All valid study hours (never deleted) 📚\n" +
+          "• Current period = Hours since last giveaway reset 🔥\n" +
+          "• Recent study counts MORE than old hours!\n\n" +
+          "**After each giveaway:** Admin resets the period\n" +
+          "• Current period hours → 0 (fresh start)\n" +
+          "• Lifetime hours stay forever ✅\n" +
+          "• Newcomers compete fairly with veterans!",
+        inline: false,
+      }
+    )
+    .setFooter({ text: "Study consistently and good luck! 💚" });
+
+  await interaction.reply({ embeds: [embed], ephemeral: true });
 }
