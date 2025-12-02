@@ -1,5 +1,6 @@
 import Discord from "discord.js";
 import { studyStatsStore } from "../services/StudyStatsStore.js";
+import { STUDY_ROLE_ID, TAMOOH_ROLE_ID } from "../services/study/config.js";
 
 const { EmbedBuilder } = Discord;
 
@@ -90,7 +91,7 @@ export async function handleStudyLeaderboard(interaction) {
     return;
   }
 
-  // Calculate tickets for each user and total tickets
+  // Calculate tickets for leaderboard users
   const usersWithTickets = leaderboard.map(entry => {
     // Check for ticket override first, otherwise calculate from hours
     const ticketOverride = studyStatsStore.getTicketOverride(entry.userId, interaction.guildId);
@@ -104,13 +105,40 @@ export async function handleStudyLeaderboard(interaction) {
     };
   });
 
-  // Calculate total tickets in the pool
-  const totalTickets = usersWithTickets.reduce((sum, user) => sum + user.tickets, 0);
+  // Calculate ACTUAL total tickets across ALL eligible users (matching giveaway logic)
+  // This ensures win chances are accurate, not overstated
+  await interaction.guild.members.fetch();
+  const allMembers = interaction.guild.members.cache;
+  let totalTickets = 0;
 
-  // Create leaderboard lines with tickets, hours, and win chance
+  for (const [userId, member] of allMembers) {
+    // Skip bots
+    if (member.user.bot) continue;
+
+    // Check if user has BOTH required roles (same as giveaway logic)
+    const hasStudyRole = member.roles.cache.has(STUDY_ROLE_ID);
+    const hasTamoohRole = member.roles.cache.has(TAMOOH_ROLE_ID);
+
+    if (!hasStudyRole || !hasTamoohRole) continue;
+
+    // Get user's session stats
+    const stats = studyStatsStore.getUserStats(userId, interaction.guildId);
+
+    // Calculate tickets (override or formula)
+    const ticketOverride = studyStatsStore.getTicketOverride(userId, interaction.guildId);
+    const tickets = ticketOverride !== null
+      ? ticketOverride
+      : (8 + Math.round(Math.sqrt(stats.totalHours) * 8));
+
+    totalTickets += tickets;
+  }
+
+  // Create leaderboard lines with tickets, hours, and ACCURATE win chance
   const lines = usersWithTickets.map((entry, i) => {
     const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `**${i + 1}.**`;
-    const winChance = ((entry.tickets / totalTickets) * 100).toFixed(2);
+    const winChance = totalTickets > 0
+      ? ((entry.tickets / totalTickets) * 100).toFixed(2)
+      : "0.00";
 
     return `${medal} <@${entry.userId}>\n` +
            `   🎫 ${entry.tickets} tickets | ⏱️ ${entry.totalHours}h | 🎲 ${winChance}% chance`;
