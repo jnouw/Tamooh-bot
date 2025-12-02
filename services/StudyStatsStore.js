@@ -57,19 +57,64 @@ export class StudyStatsStore {
   }
 
   /**
+   * Check if a milestone was reached
+   * Milestones: first session, 3h, 10h, 24h, 48h, 72h, 96h, etc.
+   * @param {number} oldHours - Hours before this session
+   * @param {number} newHours - Hours after this session
+   * @param {number} oldSessions - Sessions before this session
+   * @returns {{ type: string, value: number } | null} - Milestone info or null
+   */
+  checkMilestone(oldHours, newHours, oldSessions) {
+    // First session milestone
+    if (oldSessions === 0) {
+      return { type: 'first_session', value: 1 };
+    }
+
+    // Hour milestones: 3, 10, 24, 48, 72, 96, etc. (every 24h after 24h)
+    const hourMilestones = [3, 10, 24];
+
+    // Add 24-hour increments starting from 48
+    for (let h = 48; h <= Math.ceil(newHours); h += 24) {
+      hourMilestones.push(h);
+    }
+
+    for (const milestone of hourMilestones) {
+      if (oldHours < milestone && newHours >= milestone) {
+        return { type: 'hours', value: milestone };
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Record a completed study session
    * @param {string} userId - Discord user ID
    * @param {string} guildId - Discord guild ID
    * @param {number} minutes - Duration in minutes (typically 25)
+   * @returns {Promise<{ milestone: { type: string, value: number } | null }>}
    */
   async recordSession(userId, guildId, minutes) {
+    // Get old stats
+    const oldStats = this.getUserStats(userId, guildId);
+
+    // Record session
     this.data.sessions.push({
       userId,
       guildId,
       minutes,
       timestamp: Date.now()
     });
+
+    // Get new stats
+    const newStats = this.getUserStats(userId, guildId);
+
+    // Check for milestone
+    const milestone = this.checkMilestone(oldStats.totalHours, newStats.totalHours, oldStats.totalSessions);
+
     await this.save();
+
+    return { milestone };
   }
 
   /**

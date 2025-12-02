@@ -1,7 +1,7 @@
 import Discord from "discord.js";
 import { studyStatsStore } from "../StudyStatsStore.js";
 import { sessionStateStore } from "../SessionStateStore.js";
-import { logToChannel } from "./utils.js";
+import { logToChannel, announceMilestone } from "./utils.js";
 import { DELETE_DELAY_MS } from "./config.js";
 import { setVoiceChannelMute, updateVoiceChannelName } from "./voiceManager.js";
 
@@ -111,9 +111,15 @@ async function completeFocusSession(session, client) {
       // Increment pomodoro count
       session.pomodoroCount++;
 
-      // Log completion for each participant
+      // Log completion for each participant and check for milestones
       for (const [userId] of participants) {
-        await studyStatsStore.recordSession(userId, session.guildId, session.duration);
+        const { milestone } = await studyStatsStore.recordSession(userId, session.guildId, session.duration);
+
+        // Announce milestone if reached
+        if (milestone) {
+          const userStats = studyStatsStore.getUserStats(userId, session.guildId);
+          await announceMilestone(client, session.guildId, userId, milestone, userStats);
+        }
       }
 
       // Calculate break time (1/5 of session duration)

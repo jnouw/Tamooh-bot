@@ -1,5 +1,5 @@
 import Discord from "discord.js";
-import { STUDY_LOG_CHANNEL_ID, STUDY_ROLE_ID } from "./config.js";
+import { STUDY_LOG_CHANNEL_ID, STUDY_ROLE_ID, STUDY_CHANNEL_ID } from "./config.js";
 
 const { EmbedBuilder } = Discord;
 
@@ -60,4 +60,67 @@ export function getMotivationalMessage(sessions) {
   if (sessions < 50) return "You're on fire! 🔥";
   if (sessions < 100) return "Study master in the making!";
   return "Legendary dedication! 🏆";
+}
+
+/**
+ * Announce a milestone achievement in the study channel
+ */
+export async function announceMilestone(client, guildId, userId, milestone, totalStats) {
+  try {
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return;
+
+    const studyChannel = guild.channels.cache.get(STUDY_CHANNEL_ID);
+    if (!studyChannel) {
+      console.warn("[Study] Study channel not found for milestone announcement");
+      return;
+    }
+
+    let title, description, color;
+
+    if (milestone.type === 'first_session') {
+      title = "🎉 First Session Complete!";
+      description = `<@${userId}> just completed their first study session!\n\nWelcome to the journey! 🚀`;
+      color = 0x57F287; // Green
+    } else if (milestone.type === 'hours') {
+      const hours = milestone.value;
+      title = `🏆 ${hours} Hour Milestone!`;
+
+      let emoji = "⭐";
+      let message = "Keep up the great work!";
+
+      if (hours >= 100) {
+        emoji = "👑";
+        message = "Legendary dedication!";
+      } else if (hours >= 72) {
+        emoji = "💎";
+        message = "You're a study champion!";
+      } else if (hours >= 48) {
+        emoji = "🔥";
+        message = "Unstoppable progress!";
+      } else if (hours >= 24) {
+        emoji = "💪";
+        message = "Amazing commitment!";
+      }
+
+      description = `${emoji} <@${userId}> just reached **${hours} hours** of study time!\n\n` +
+                   `**Total Stats:**\n` +
+                   `⏱️ ${totalStats.totalHours} hours\n` +
+                   `📚 ${totalStats.totalSessions} sessions completed\n\n` +
+                   `${message}`;
+      color = 0xFFD700; // Gold
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle(title)
+      .setColor(color)
+      .setDescription(description)
+      .setTimestamp();
+
+    await studyChannel.send({ embeds: [embed] });
+    console.log(`[Study] Announced milestone for user ${userId}: ${milestone.type} - ${milestone.value}`);
+
+  } catch (error) {
+    console.error("[Study] Failed to announce milestone:", error.message);
+  }
 }
