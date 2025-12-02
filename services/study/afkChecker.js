@@ -67,7 +67,7 @@ class AFKChecker {
       console.error(`[AFKChecker] Failed to send AFK check to ${user.username}:`, error.message);
 
       // If we can't send DM, invalidate the session immediately
-      await studyStatsStore.updateSessionValidity(sessionId, false);
+      await studyStatsStore.updateSessionValidity(sessionId, false); // No milestone on invalidation
 
       return false;
     }
@@ -103,22 +103,32 @@ class AFKChecker {
     this.responses.set(parseInt(sessionId), sessionResponses);
 
     // Update session validity (will be valid only if no gaming was detected)
-    const session = await studyStatsStore.updateSessionValidity(parseInt(sessionId), true);
+    const { session, milestone } = await studyStatsStore.updateSessionValidity(parseInt(sessionId), true);
+
+    // Build response message with milestone if applicable
+    let description = session?.valid
+      ? `**Your session has been counted!**\n\nKeep up the great work! 💪`
+      : `**Response received!**\n\nYour session is being processed.`;
+
+    // Add milestone announcement if reached
+    if (milestone) {
+      if (milestone.type === 'first_session') {
+        description += `\n\n🎉 **First Session Complete!**\nWelcome to your study journey!`;
+      } else if (milestone.type === 'hours') {
+        description += `\n\n🎉 **Milestone Reached!**\nYou've completed ${milestone.value} study hours!`;
+      }
+    }
 
     // Update the DM message
     const validEmbed = new EmbedBuilder()
       .setTitle("✅ Response Confirmed!")
-      .setColor(0x57F287)
-      .setDescription(
-        session?.valid
-          ? `**Your session has been counted!**\n\nKeep up the great work! 💪`
-          : `**Response received!**\n\nYour session is being processed.`
-      )
+      .setColor(milestone ? 0xFFD700 : 0x57F287) // Gold if milestone, green otherwise
+      .setDescription(description)
       .setTimestamp();
 
     await interaction.update({ embeds: [validEmbed], components: [] });
 
-    console.log(`[AFKChecker] User ${userId} confirmed session ${sessionId} - Valid: ${session?.valid}`);
+    console.log(`[AFKChecker] User ${userId} confirmed session ${sessionId} - Valid: ${session?.valid}${milestone ? ` - Milestone: ${milestone.type} ${milestone.value}` : ''}`);
   }
 
   /**
@@ -139,7 +149,7 @@ class AFKChecker {
     }
 
     // User didn't respond - invalidate session
-    await studyStatsStore.updateSessionValidity(sessionId, false);
+    await studyStatsStore.updateSessionValidity(sessionId, false); // No milestone on invalidation
 
     console.log(`[AFKChecker] User ${user.username} didn't respond to AFK check for session ${sessionId} - invalidated`);
 
