@@ -300,6 +300,55 @@ export class StudyStatsStore {
 
     return overrides;
   }
+
+  /**
+   * Get violation statistics for users (AFK and gaming)
+   * @param {string} guildId - Discord guild ID
+   * @returns {Array<{userId: string, totalSessions: number, invalidSessions: number, afkViolations: number, gamingViolations: number, validSessions: number}>}
+   */
+  getViolationStats(guildId) {
+    // Group by userId
+    const userMap = new Map();
+
+    this.data.sessions
+      .filter(s => s.guildId === guildId)
+      .forEach(s => {
+        const current = userMap.get(s.userId) || {
+          totalSessions: 0,
+          validSessions: 0,
+          invalidSessions: 0,
+          afkViolations: 0,
+          gamingViolations: 0
+        };
+
+        current.totalSessions += 1;
+
+        if (s.valid) {
+          current.validSessions += 1;
+        } else {
+          current.invalidSessions += 1;
+
+          // Count violation types
+          if (!s.afkCheckPassed) {
+            current.afkViolations += 1;
+          }
+          if (s.gamingMinutes > 0) {
+            current.gamingViolations += 1;
+          }
+        }
+
+        userMap.set(s.userId, current);
+      });
+
+    // Convert to array and filter users with violations
+    return Array.from(userMap.entries())
+      .map(([userId, stats]) => ({
+        userId,
+        ...stats
+      }))
+      .filter(u => u.invalidSessions > 0)
+      .sort((a, b) => b.invalidSessions - a.invalidSessions);
+  }
 }
 
 // Export singleton instance

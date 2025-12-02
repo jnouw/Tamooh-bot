@@ -1,6 +1,6 @@
 import Discord from "discord.js";
 import { studyStatsStore } from "../services/StudyStatsStore.js";
-import { STUDY_ROLE_ID, TAMOOH_ROLE_ID } from "../services/study/config.js";
+import { STUDY_ROLE_ID, TAMOOH_ROLE_ID, OWNER_ID } from "../services/study/config.js";
 
 const { EmbedBuilder } = Discord;
 
@@ -149,6 +149,56 @@ export async function handleStudyLeaderboard(interaction) {
     .setDescription(lines.join("\n\n"))
     .setColor(0x5865F2)
     .setFooter({ text: "More study time = More tickets = Higher win chance!" });
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
+/**
+ * Handle violation stats command (admin only)
+ */
+export async function handleViolationStats(interaction) {
+  // Check if user is admin/owner
+  if (interaction.user.id !== OWNER_ID && !interaction.member.permissions.has("Administrator")) {
+    await interaction.reply({
+      content: "❌ This command is only available to administrators.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  const violationStats = studyStatsStore.getViolationStats(interaction.guildId);
+
+  if (violationStats.length === 0) {
+    await interaction.editReply({
+      content: "✅ No violations found! All users have passed their AFK checks and avoided gaming during study sessions.",
+    });
+    return;
+  }
+
+  // Create detailed violation report
+  const lines = violationStats.map((user, i) => {
+    const violations = [];
+    if (user.afkViolations > 0) {
+      violations.push(`❌ ${user.afkViolations} AFK (no DM response)`);
+    }
+    if (user.gamingViolations > 0) {
+      violations.push(`🎮 ${user.gamingViolations} Gaming detected`);
+    }
+
+    const validRate = ((user.validSessions / user.totalSessions) * 100).toFixed(1);
+
+    return `**${i + 1}.** <@${user.userId}>\n` +
+           `   📊 Sessions: ${user.validSessions} valid / ${user.totalSessions} total (${validRate}%)\n` +
+           `   ⚠️ Violations: ${violations.join(", ")}`;
+  });
+
+  const embed = new EmbedBuilder()
+    .setTitle("⚠️ Study Session Violations Report")
+    .setDescription(lines.join("\n\n"))
+    .setColor(0xED4245)
+    .setFooter({ text: `Total users with violations: ${violationStats.length}` });
 
   await interaction.editReply({ embeds: [embed] });
 }

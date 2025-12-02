@@ -84,6 +84,11 @@ const commands = [
   new SlashCommandBuilder()
     .setName('study_leaderboard')
     .setDescription('Show top students by study time')
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName('study_violations')
+    .setDescription('[Admin] View AFK and gaming violation statistics')
     .toJSON()
 ];
 
