@@ -12,7 +12,7 @@ import { gradeJava, checkJavaAvailable } from "./grader/SimpleJavaRunner.js";
 import { CONFIG } from "./config.js";
 import { logger } from "./utils/logger.js";
 import { ScoreStore } from "./services/ScoreStore.js";
-import { setupStudySystem, handleSoloPomodoro, handleGroupQueue, handleShowStats, handleQueueLeave, handleRoleAdd, handleRoleRemove, handleStudyGroupJoin, recoverSessions } from "./services/study.js";
+import { setupStudySystem, handleSoloPomodoro, handleGroupQueue, handleShowStats, handleQueueLeave, handleRoleAdd, handleRoleRemove, handleStudyGroupJoin, recoverSessions, handleAFKCheck } from "./services/study.js";
 import { studyStatsStore } from "./services/StudyStatsStore.js";
 import { handleQuizStart } from "./handlers/quizHandlers.js";
 import { handleLeaderboard, handleMyStats, handleStudyLeaderboard } from "./handlers/leaderboardHandlers.js";
@@ -195,6 +195,9 @@ async function handleButton(interaction) {
   }
   if (customId === "study_group_join") {
     return await handleStudyGroupJoin(interaction);
+  }
+  if (customId.startsWith("afk_check_")) {
+    return await handleAFKCheck(interaction);
   }
 
   // Quiz buttons (have session IDs)

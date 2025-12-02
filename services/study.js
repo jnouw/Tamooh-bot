@@ -19,6 +19,9 @@ export {
   handleStudyGroupJoin
 } from "./study/buttonHandlers.js";
 
+// Re-export AFK checker handler
+export { handleAFKCheck } from "./study/afkChecker.js";
+
 /**
  * Setup the study system
  * @param {Discord.Client} client - Discord client
