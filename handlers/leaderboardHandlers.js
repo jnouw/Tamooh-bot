@@ -90,16 +90,37 @@ export async function handleStudyLeaderboard(interaction) {
     return;
   }
 
-  const lines = leaderboard.map((entry, i) => {
+  // Calculate tickets for each user and total tickets
+  const usersWithTickets = leaderboard.map(entry => {
+    // Check for ticket override first, otherwise calculate from hours
+    const ticketOverride = studyStatsStore.getTicketOverride(entry.userId, interaction.guildId);
+    const tickets = ticketOverride !== null
+      ? ticketOverride
+      : (8 + Math.round(Math.sqrt(entry.totalHours) * 8));
+
+    return {
+      ...entry,
+      tickets
+    };
+  });
+
+  // Calculate total tickets in the pool
+  const totalTickets = usersWithTickets.reduce((sum, user) => sum + user.tickets, 0);
+
+  // Create leaderboard lines with tickets, hours, and win chance
+  const lines = usersWithTickets.map((entry, i) => {
     const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `**${i + 1}.**`;
-    return `${medal} <@${entry.userId}> — **${entry.totalHours}h** (${entry.totalSessions} sessions)`;
+    const winChance = ((entry.tickets / totalTickets) * 100).toFixed(2);
+
+    return `${medal} <@${entry.userId}>\n` +
+           `   🎫 ${entry.tickets} tickets | ⏱️ ${entry.totalHours}h | 🎲 ${winChance}% chance`;
   });
 
   const embed = new EmbedBuilder()
-    .setTitle("📚 Study Leaderboard")
-    .setDescription(lines.join("\n"))
+    .setTitle("📚 Study Leaderboard - Top 10")
+    .setDescription(lines.join("\n\n"))
     .setColor(0x5865F2)
-    .setFooter({ text: "Keep up the great work!" });
+    .setFooter({ text: "More study time = More tickets = Higher win chance!" });
 
   await interaction.editReply({ embeds: [embed] });
 }
