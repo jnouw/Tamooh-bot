@@ -172,32 +172,10 @@ async function completeFocusSession(session, client) {
         // So we don't announce them here anymore
       }
 
-      // Calculate break time (1/5 of session duration)
-      const breakMinutes = Math.round(session.duration / 5);
-
-      // Post summary
-      const mentions = Array.from(participants.keys()).map(id => `<@${id}>`).join(", ");
-      const embed = new EmbedBuilder()
-        .setTitle("✅ Focus Session Completed")
-        .setColor(0x57F287)
-        .setDescription(
-          `**Duration:** ${session.duration} minutes\n` +
-          `**Session:** #${session.pomodoroCount}\n` +
-          `**Participants:** ${participantCount}\n\n` +
-          `${mentions}\n\n` +
-          `☕ **${breakMinutes}-minute break starting now!**\n` +
-          `Next focus session starts automatically.`
-        )
-        .setTimestamp();
-
-      if (textChannel) {
-        const msg = await textChannel.send({ embeds: [embed] });
-        setTimeout(() => msg.delete().catch(() => {}), DELETE_DELAY_MS);
-      }
-
       console.log(`[Study] Focus session ${session.id} completed (Pomodoro #${session.pomodoroCount}) with ${participantCount} participants`);
 
-      // Log completion to log channel
+      // Log completion to admin log channel (keep for tracking)
+      const mentions = Array.from(participants.keys()).map(id => `<@${id}>`).join(", ");
       const logEmbed = new EmbedBuilder()
         .setTitle("✅ Focus Session Completed")
         .setColor(0x57F287)
@@ -313,23 +291,6 @@ async function completeBreakSession(session, client) {
         } catch (error) {
           console.log(`[Study] Could not send DM to ${member.user.username}: ${error.message}`);
         }
-      }
-
-      // Post announcement
-      const mentions = Array.from(participants.keys()).map(id => `<@${id}>`).join(", ");
-      const embed = new EmbedBuilder()
-        .setTitle("📚 Next Focus Session Starting!")
-        .setColor(0x5865F2)
-        .setDescription(
-          `Break complete!\n\n` +
-          `${mentions}\n\n` +
-          `**Session #${session.pomodoroCount + 1}** starting now!`
-        )
-        .setTimestamp();
-
-      if (textChannel) {
-        const msg = await textChannel.send({ embeds: [embed] });
-        setTimeout(() => msg.delete().catch(() => {}), DELETE_DELAY_MS);
       }
     }
 
