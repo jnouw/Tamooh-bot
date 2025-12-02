@@ -202,3 +202,90 @@ export async function handleViolationStats(interaction) {
 
   await interaction.editReply({ embeds: [embed] });
 }
+
+/**
+ * Handle ticket override management command (admin only)
+ */
+export async function handleTicketOverride(interaction) {
+  // Check if user is admin/owner
+  if (interaction.user.id !== OWNER_ID && !interaction.member.permissions.has("Administrator")) {
+    await interaction.reply({
+      content: "❌ This command is only available to administrators.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const action = interaction.options.getString("action");
+  const targetUser = interaction.options.getUser("user");
+  const tickets = interaction.options.getInteger("tickets");
+
+  if (action === "set") {
+    if (!targetUser || tickets === null) {
+      await interaction.reply({
+        content: "❌ Please provide both a user and ticket count for the 'set' action.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    await studyStatsStore.setTicketOverride(targetUser.id, interaction.guildId, tickets);
+
+    if (tickets === 0) {
+      await interaction.reply({
+        content: `✅ Cleared ticket override for <@${targetUser.id}>. They will now use the formula: 8 + √hours × 8`,
+        ephemeral: true,
+      });
+    } else {
+      await interaction.reply({
+        content: `✅ Set ticket override for <@${targetUser.id}> to **${tickets} tickets**`,
+        ephemeral: true,
+      });
+    }
+  } else if (action === "clear") {
+    if (targetUser) {
+      // Clear specific user
+      await studyStatsStore.setTicketOverride(targetUser.id, interaction.guildId, 0);
+      await interaction.reply({
+        content: `✅ Cleared ticket override for <@${targetUser.id}>`,
+        ephemeral: true,
+      });
+    } else {
+      // Clear all overrides for the guild
+      const overrides = studyStatsStore.getGuildTicketOverrides(interaction.guildId);
+      let count = 0;
+
+      for (const [userId, _] of overrides) {
+        await studyStatsStore.setTicketOverride(userId, interaction.guildId, 0);
+        count++;
+      }
+
+      await interaction.reply({
+        content: `✅ Cleared **${count}** ticket overrides. All users will now use the formula: 8 + √hours × 8`,
+        ephemeral: true,
+      });
+    }
+  } else if (action === "list") {
+    const overrides = studyStatsStore.getGuildTicketOverrides(interaction.guildId);
+
+    if (overrides.size === 0) {
+      await interaction.reply({
+        content: "📋 No ticket overrides are currently set. All users use the formula: 8 + √hours × 8",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const lines = Array.from(overrides.entries())
+      .map(([userId, tickets]) => `• <@${userId}>: **${tickets}** tickets`)
+      .join("\n");
+
+    const embed = new EmbedBuilder()
+      .setTitle("🎫 Ticket Overrides")
+      .setDescription(lines)
+      .setColor(0x5865F2)
+      .setFooter({ text: `Total overrides: ${overrides.size}` });
+
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+}

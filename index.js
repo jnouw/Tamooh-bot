@@ -15,7 +15,7 @@ import { ScoreStore } from "./services/ScoreStore.js";
 import { setupStudySystem, handleSoloPomodoro, handleGroupQueue, handleShowStats, handleQueueLeave, handleRoleAdd, handleRoleRemove, handleStudyGroupJoin, recoverSessions, handleAFKCheck } from "./services/study.js";
 import { studyStatsStore } from "./services/StudyStatsStore.js";
 import { handleQuizStart } from "./handlers/quizHandlers.js";
-import { handleLeaderboard, handleMyStats, handleStudyLeaderboard, handleViolationStats } from "./handlers/leaderboardHandlers.js";
+import { handleLeaderboard, handleMyStats, handleStudyLeaderboard, handleViolationStats, handleTicketOverride } from "./handlers/leaderboardHandlers.js";
 import {
   handleMCQAnswer,
   handleOpenLineModal,
@@ -165,6 +165,8 @@ async function handleSlashCommand(interaction) {
     await handleStudyLeaderboard(interaction);
   } else if (interaction.commandName === "study_violations") {
     await handleViolationStats(interaction);
+  } else if (interaction.commandName === "study_tickets") {
+    await handleTicketOverride(interaction);
   }
 }
 

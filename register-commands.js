@@ -89,6 +89,30 @@ const commands = [
   new SlashCommandBuilder()
     .setName('study_violations')
     .setDescription('[Admin] View AFK and gaming violation statistics')
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName('study_tickets')
+    .setDescription('[Admin] Manage ticket overrides for giveaways')
+    .addStringOption(o =>
+      o.setName('action')
+        .setDescription('Action to perform')
+        .setRequired(true)
+        .addChoices(
+          { name: 'Set override for a user', value: 'set' },
+          { name: 'Clear override(s)', value: 'clear' },
+          { name: 'List all overrides', value: 'list' }
+        )
+    )
+    .addUserOption(o =>
+      o.setName('user')
+        .setDescription('User to set/clear override for (leave empty to clear all)')
+    )
+    .addIntegerOption(o =>
+      o.setName('tickets')
+        .setDescription('Number of tickets (0 to remove override, use with "set" action)')
+        .setMinValue(0)
+    )
     .toJSON()
 ];
 
