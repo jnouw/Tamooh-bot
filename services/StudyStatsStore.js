@@ -53,6 +53,22 @@ export class StudyStatsStore {
           this.data.ticketOverrides = {};
         }
 
+        // Migrate legacy sessions: set valid=true for sessions without the field
+        let migratedCount = 0;
+        for (const session of this.data.sessions) {
+          if (session.valid === undefined) {
+            session.valid = true;
+            session.gamingMinutes = session.gamingMinutes || 0;
+            session.afkCheckPassed = session.afkCheckPassed !== undefined ? session.afkCheckPassed : true;
+            migratedCount++;
+          }
+        }
+
+        if (migratedCount > 0) {
+          console.log(`[StudyStats] Migrated ${migratedCount} legacy sessions to new format`);
+          await this.save();
+        }
+
         console.log(`[StudyStats] Loaded ${this.data.sessions.length} sessions`);
       }
     } catch (error) {
@@ -157,21 +173,34 @@ export class StudyStatsStore {
    * Update session validity after AFK check
    * @param {number} sessionId - Session index in array
    * @param {boolean} afkCheckPassed - Whether user responded to DM
+   * @returns {Promise<{ session: object | null, milestone: { type: string, value: number } | null }>}
    */
   async updateSessionValidity(sessionId, afkCheckPassed) {
     if (sessionId >= 0 && sessionId < this.data.sessions.length) {
       const session = this.data.sessions[sessionId];
+
+      // Get stats before validation
+      const oldStats = this.getUserStats(session.userId, session.guildId);
+
       session.afkCheckPassed = afkCheckPassed;
 
       // Session is valid only if:
       // 1. AFK check passed (user responded to DM)
       // 2. No gaming detected (gamingMinutes === 0)
+      const wasValid = session.valid;
       session.valid = afkCheckPassed && session.gamingMinutes === 0;
 
+      // Check for milestone only if session just became valid
+      let milestone = null;
+      if (!wasValid && session.valid) {
+        const newStats = this.getUserStats(session.userId, session.guildId);
+        milestone = this.checkMilestone(oldStats.totalHours, newStats.totalHours, oldStats.totalSessions);
+      }
+
       await this.save();
-      return session;
+      return { session, milestone };
     }
-    return null;
+    return { session: null, milestone: null };
   }
 
   /**
