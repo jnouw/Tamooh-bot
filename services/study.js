@@ -214,6 +214,17 @@ export function setupStudySystem(client) {
             } catch (error) {
               console.error(`[Study] Failed to mute new joiner ${member.id}:`, error.message);
             }
+
+            // Add to activity tracking if session is being tracked
+            const { activityTracker } = await import('./study/activityTracker.js');
+            const sessionData = activityTracker.sessionActivities.get(channelId);
+            if (sessionData && !sessionData.has(member.id)) {
+              sessionData.set(member.id, {
+                gamingStartTime: null,
+                totalGamingMs: 0
+              });
+              console.log(`[Study] Added ${member.user.username} to activity tracking for session ${session.id}`);
+            }
           }
         }
 

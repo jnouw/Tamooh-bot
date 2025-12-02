@@ -174,9 +174,18 @@ class AFKChecker {
     const now = Date.now();
     const tenMinutes = 10 * 60 * 1000;
 
+    // Clean up old pending checks
     for (const [messageId, check] of this.pendingChecks.entries()) {
       if (now - check.timestamp > tenMinutes) {
         this.pendingChecks.delete(messageId);
+
+        // Also clean up the response tracking for this session if no more pending checks
+        const stillHasPendingForSession = Array.from(this.pendingChecks.values())
+          .some(c => c.sessionId === check.sessionId);
+
+        if (!stillHasPendingForSession) {
+          this.responses.delete(check.sessionId);
+        }
       }
     }
   }

@@ -95,6 +95,9 @@ export async function startPomodoroTimer(session, client) {
       if (userIds.length > 0) {
         activityTracker.startTracking(session.voiceChannelId, userIds);
 
+        // Do immediate check to catch anyone already gaming when session starts
+        await activityTracker.checkAllUsers(client, session.voiceChannelId, session.guildId);
+
         // Check activities every 30 seconds
         session.activityCheckInterval = setInterval(() => {
           activityTracker.checkAllUsers(client, session.voiceChannelId, session.guildId);
