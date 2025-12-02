@@ -251,7 +251,7 @@ export class StudyStatsStore {
    */
   getTicketOverride(userId, guildId) {
     const key = `${guildId}:${userId}`;
-    return this.data.ticketOverrides[key] || null;
+    return this.data.ticketOverrides[key] !== undefined ? this.data.ticketOverrides[key] : null;
   }
 
   /**
