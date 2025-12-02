@@ -147,7 +147,7 @@ export async function handleStudyLeaderboard(interaction) {
     .setTitle("📚 Study Leaderboard - Top 10")
     .setDescription(lines.join("\n\n"))
     .setColor(0x5865F2)
-    .setFooter({ text: `${periodInfo} | Formula: 10 + √lifetime×5 + current×2` });
+    .setFooter({ text: `${periodInfo} | Formula: 30 + √lifetime×5 + current×3` });
 
   await interaction.editReply({ embeds: [embed] });
 }
@@ -227,16 +227,9 @@ export async function handleHelpCommand(interaction) {
         inline: false,
       },
       {
-        name: "🔧 Admin Commands (! prefix - hidden)",
-        value:
-          "• `!violations` - View AFK and gaming violation statistics\n" +
-          "• `!reset_period` - Reset giveaway period (soft reset for new competition)",
-        inline: false,
-      },
-      {
         name: "🎟️ Period-Based Ticket System",
         value:
-          "**Formula:** `10 + √(lifetime hours) × 5 + (current period hours) × 2`\n\n" +
+          "**Formula:** `30 + √(lifetime hours) × 5 + (current period hours) × 3`\n\n" +
           "**How it works:**\n" +
           "• Lifetime hours = All valid study hours (never deleted) 📚\n" +
           "• Current period = Hours since last giveaway reset 🔥\n" +
@@ -245,6 +238,16 @@ export async function handleHelpCommand(interaction) {
           "• Current period hours → 0 (fresh start)\n" +
           "• Lifetime hours stay forever ✅\n" +
           "• Newcomers compete fairly with veterans!",
+        inline: false,
+      },
+      {
+        name: "🎮 Study Session Buttons",
+        value:
+          "Use the study session message buttons to:\n" +
+          "• Start solo sessions (25min or 50min)\n" +
+          "• Join group queues\n" +
+          "• View your comprehensive stats 📊\n" +
+          "• Manage study role notifications",
         inline: false,
       }
     )
