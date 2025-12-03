@@ -14,7 +14,7 @@ We completely redesigned how giveaway tickets work to make competitions fair for
 - We now track **current period hours** (🔥 resets after each giveaway)
 - New ticket formula rewards recent studying while respecting your lifetime effort:
   ```
-  Tickets = 10 + √(lifetime hours) × 5 + (current period hours) × 2
+  Tickets = 30 + round(√lifetime hours × 5) + round(current period hours × 3)
   ```
 
 **Why this is awesome:**
@@ -25,9 +25,9 @@ We completely redesigned how giveaway tickets work to make competitions fair for
 - The system is completely transparent (formula shown on leaderboard)
 
 **Example:**
-- Veteran with 100h lifetime, 0h recent → 60 tickets
-- New student with 5h lifetime, 20h recent → 61 tickets ✅
-- Active veteran with 100h lifetime, 10h recent → 80 tickets 🔥
+- Veteran with 100h lifetime, 0h recent → 80 tickets
+- New student with 5h lifetime, 20h recent → 101 tickets ✅
+- Active veteran with 100h lifetime, 10h recent → 110 tickets 🔥
 
 ---
 
