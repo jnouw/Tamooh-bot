@@ -104,7 +104,14 @@ export async function handleResetPeriodCommand(message) {
     });
 
     const reaction = collected.first();
-    console.log(`[AdminCmd] Collected reaction: ${reaction?.emoji.name}`);
+    console.log(`[AdminCmd] Collected reaction: ${reaction?.emoji.name}, Collection size: ${collected.size}`);
+
+    if (!reaction) {
+      console.log("[AdminCmd] No reaction collected");
+      await message.reply("❌ Period reset cancelled (no reaction received).");
+      await confirmMsg.delete().catch(() => {});
+      return;
+    }
 
     if (reaction.emoji.name === "✅") {
       console.log("[AdminCmd] Confirmed - executing reset...");

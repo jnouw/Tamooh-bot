@@ -46,6 +46,7 @@ const client = new Client({
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildPresences, // Required for gaming detection (member.presence.activities)
+    GatewayIntentBits.GuildMessageReactions, // Required for reaction-based commands
   ],
 });
 
