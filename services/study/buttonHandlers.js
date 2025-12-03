@@ -316,65 +316,35 @@ export async function handleShowStats(interaction) {
     .setDescription(description)
     .addFields(
       // Competitive Overview
-      { name: "🏅 Server Standing", value: "━━━━━━━━━━━━━━━", inline: false },
-      { name: "Your Rank", value: `#${ranking.rank} / ${ranking.totalUsers}`, inline: true },
-      { name: "Percentile", value: `Top ${ranking.percentile}%`, inline: true },
-      { name: "Gap to Leader", value: gapText, inline: true },
+      { name: "🏅 Server Standing", value: `Rank: **#${ranking.rank}** / ${ranking.totalUsers} (Top ${ranking.percentile}%)\n${gapText}`, inline: false },
 
       // Core Stats
-      { name: "📚 Study Performance", value: "━━━━━━━━━━━━━━━", inline: false },
-      { name: "Lifetime Hours", value: `**${stats.lifetimeHours}h**`, inline: true },
-      { name: "vs Server Avg", value: vsAverageText, inline: true },
-      { name: "Total Sessions", value: `${stats.totalSessions}`, inline: true },
+      { name: "📚 Study Performance", value: `Lifetime: **${stats.lifetimeHours}h** (${vsAverageText})\nSessions: ${stats.totalSessions} | Avg: ${avgSessionLength}h`, inline: true },
 
       // Current Period (Competition)
-      { name: "⚔️ Current Competition", value: "━━━━━━━━━━━━━━━", inline: false },
-      { name: "Period Hours", value: `**${stats.currentPeriodHours}h**`, inline: true },
-      { name: "Your Tickets", value: `🎫 **${tickets}**`, inline: true },
-      { name: "Success Rate", value: `${validationRate}`, inline: true },
+      { name: "⚔️ Current Competition", value: `Period Hours: **${stats.currentPeriodHours}h**\nTickets: 🎫 **${tickets}** | Success: ${validationRate}`, inline: true },
 
       // Winning Chances
-      { name: "🎰 Next Giveaway Odds", value: "━━━━━━━━━━━━━━━", inline: false },
-      {
-        name: "Win Chance",
-        value: `**${winningChances.winChance}%**`,
-        inline: true
-      },
-      {
-        name: "Total Pool",
-        value: `${winningChances.totalTickets} tickets`,
-        inline: true
-      },
-      {
-        name: "Your Share",
-        value: `${tickets}/${winningChances.totalTickets}`,
-        inline: true
-      },
+      { name: "🎰 Next Giveaway Odds", value: `Win Chance: **${winningChances.winChance}%**\nYour Share: ${tickets}/${winningChances.totalTickets} tickets`, inline: false },
 
       // Progress & Goals
-      { name: "🎯 Next Milestone", value: "━━━━━━━━━━━━━━━", inline: false },
-      {
-        name: `Goal: ${nextMilestone}h`,
-        value: `${milestoneBar} ${hoursToNext.toFixed(1)}h to go!`,
-        inline: false
-      }
+      { name: "🎯 Next Milestone", value: `Goal: **${nextMilestone}h**\n${milestoneBar} ${hoursToNext.toFixed(1)}h to go!`, inline: false }
     );
 
   // Add streak section if user has any sessions
   if (stats.totalSessions > 0) {
     const streakEmoji = streak.currentStreak >= 7 ? "🔥" : streak.currentStreak >= 3 ? "⚡" : "📅";
-    let streakText = `Current: **${streak.currentStreak} days** ${streakEmoji}\n`;
-    streakText += `Best: **${streak.longestStreak} days**`;
+    let streakText = `Current: **${streak.currentStreak} days** ${streakEmoji} | Best: **${streak.longestStreak} days**\n`;
+    streakText += `Last Study: ${streak.lastStudyDate || "N/A"}`;
     if (streak.currentStreak === 0 && streak.longestStreak > 0) {
       streakText += "\n💔 Streak lost! Start a new one today!";
     }
 
-    embed.addFields(
-      { name: "🔥 Study Streak", value: "━━━━━━━━━━━━━━━", inline: false },
-      { name: "Streak Stats", value: streakText, inline: true },
-      { name: "Avg Session", value: `${avgSessionLength}h`, inline: true },
-      { name: "Last Study", value: streak.lastStudyDate || "N/A", inline: true }
-    );
+    embed.addFields({
+      name: "🔥 Study Streak",
+      value: streakText,
+      inline: false
+    });
   }
 
   // Giveaway Stats (only if there have been giveaways)
@@ -384,12 +354,7 @@ export async function handleShowStats(interaction) {
       ? "🌟 Winner!"
       : "🎯 Keep grinding for your first win!";
 
-    embed.addFields(
-      { name: "🏆 Giveaway Performance", value: "━━━━━━━━━━━━━━━", inline: false },
-      { name: "Total Wins", value: `**${winStats.totalWins}**`, inline: true },
-      { name: "Win Rate", value: `**${winRateDisplay}**`, inline: true },
-      { name: "Status", value: giveawayStatus, inline: true }
-    );
+    let giveawayText = `Wins: **${winStats.totalWins}** | Win Rate: **${winRateDisplay}** | ${giveawayStatus}`;
 
     if (winStats.recentWins.length > 0) {
       const recentWinsList = winStats.recentWins
@@ -399,13 +364,14 @@ export async function handleShowStats(interaction) {
           return `• ${w.prizeName} (${date.toLocaleDateString()})`;
         })
         .join("\n");
-
-      embed.addFields({
-        name: "🎁 Recent Wins",
-        value: recentWinsList,
-        inline: false
-      });
+      giveawayText += `\n\n**Recent Wins:**\n${recentWinsList}`;
     }
+
+    embed.addFields({
+      name: "🏆 Giveaway Performance",
+      value: giveawayText,
+      inline: false
+    });
   }
 
   // Competitive footer message
