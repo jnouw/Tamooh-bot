@@ -19,9 +19,6 @@ export {
   handleStudyGroupJoin
 } from "./study/buttonHandlers.js";
 
-// Re-export AFK checker handler
-export { handleAFKCheck } from "./study/afkChecker.js";
-
 /**
  * Clean up orphaned study/break channels that aren't tracked in active sessions
  * This happens when the bot crashes and session state is lost
