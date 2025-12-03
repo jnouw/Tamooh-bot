@@ -170,8 +170,9 @@ export async function runGiveaway(message, prizeName) {
 
       // Handle zero-hour users specially (inline with pipe separators)
       if (key === "zero") {
-        const zeroWinPercentage = ((8 / totalTickets) * 100).toFixed(2);
-        userListText += `━━━ ${group.title} | 📊 ${zeroWinPercentage}% each ━━━\n`;
+        const baselineTickets = 30; // From the calculateTickets formula baseline
+        const zeroWinPercentage = ((baselineTickets / totalTickets) * 100).toFixed(2);
+        userListText += `━━━ ${group.title} | 🎫 ${baselineTickets} tickets | 📊 ${zeroWinPercentage}% each ━━━\n`;
 
         // Group users in rows of 5
         for (let i = 0; i < group.users.length; i += 5) {
@@ -184,7 +185,8 @@ export async function runGiveaway(message, prizeName) {
         userListText += `━━━ ${group.title} ━━━\n`;
         for (const user of group.users) {
           const winPercentage = ((user.tickets / totalTickets) * 100).toFixed(2);
-          userListText += `**${currentRank}.** ${user.displayName} — ⏱️ ${user.hours}h | 📊 ${winPercentage}%\n`;
+          userListText += `**${currentRank}.** ${user.displayName}\n`;
+          userListText += `   🎫 ${user.tickets} tickets | ⏱️ ${user.hours}h total | 📅 ${user.currentPeriodHours}h current | 📊 ${winPercentage}% chance\n`;
           currentRank++;
         }
         userListText += "\n";

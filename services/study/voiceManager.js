@@ -3,6 +3,28 @@
  */
 
 /**
+ * Set voice channel status message
+ */
+export async function setVoiceChannelStatus(client, session, isSolo = true) {
+  try {
+    const guild = client.guilds.cache.get(session.guildId);
+    if (!guild) return;
+
+    const vc = guild.channels.cache.get(session.voiceChannelId);
+    if (!vc) return;
+
+    const statusMessage = isSolo
+      ? "Solo studying"
+      : "Group studying - join me!";
+
+    await vc.setVoiceStatus(statusMessage);
+    console.log(`[Study] Set VC status to: ${statusMessage}`);
+  } catch (error) {
+    console.error(`[Study] Failed to set VC status:`, error.message);
+  }
+}
+
+/**
  * Update voice channel name based on session phase and duration
  */
 export async function updateVoiceChannelName(client, session) {
@@ -13,20 +35,22 @@ export async function updateVoiceChannelName(client, session) {
     const vc = guild.channels.cache.get(session.voiceChannelId);
     if (!vc) return;
 
-    let newName;
-    if (session.type === "solo") {
-      if (session.phase === "focus") {
-        newName = `📚 Study – ${session.username} – ${session.duration}min Focus`;
-      } else {
-        newName = `☕ Break – ${session.username} – ${Math.round(session.duration / 5)}min`;
-      }
-    } else {
-      if (session.phase === "focus") {
-        newName = `📚 Study Group – ${session.duration}min Focus`;
-      } else {
-        newName = `☕ Group Break – ${Math.round(session.duration / 5)}min`;
-      }
-    }
+    // Get course/topic name (fallback to "Study" if not set)
+    const courseName = session.topic || "Study";
+
+    // Calculate current time remaining
+    const elapsed = Date.now() - session.startedAt;
+    const totalDuration = session.phase === "focus"
+      ? session.duration
+      : Math.round(session.duration / 5);
+    const remaining = Math.max(0, totalDuration - Math.floor(elapsed / 60000));
+
+    // Choose emoji and status based on phase
+    const emoji = session.phase === "focus" ? "📚" : "☕";
+    const status = session.phase === "focus" ? "Focus" : "Break";
+
+    // Format: Course | Time | Status
+    const newName = `${emoji} ${courseName} | ${remaining} min | ${status}`;
 
     await vc.setName(newName);
     console.log(`[Study] Updated VC name to: ${newName}`);

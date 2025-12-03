@@ -3,9 +3,8 @@ import { studyStatsStore } from "../StudyStatsStore.js";
 import { sessionStateStore } from "../SessionStateStore.js";
 import { logToChannel, announceMilestone } from "./utils.js";
 import { DELETE_DELAY_MS } from "./config.js";
-import { setVoiceChannelMute, updateVoiceChannelName } from "./voiceManager.js";
+import { setVoiceChannelMute, updateVoiceChannelName, setVoiceChannelStatus } from "./voiceManager.js";
 import { activityTracker } from "./activityTracker.js";
-import { afkChecker } from "./afkChecker.js";
 
 const { EmbedBuilder } = Discord;
 
@@ -62,6 +61,17 @@ export async function startPomodoroTimer(session, client) {
 
   // Update VC name to show focus phase
   await updateVoiceChannelName(client, session);
+
+  // Set channel status (solo or group based on participant count)
+  try {
+    const guild = client.guilds.cache.get(session.guildId);
+    const vc = guild?.channels.cache.get(session.voiceChannelId);
+    const participantCount = vc?.members.filter(m => !m.user.bot).size || 0;
+    const isSolo = participantCount <= 1;
+    await setVoiceChannelStatus(client, session, isSolo);
+  } catch (error) {
+    console.error(`[Study] Failed to set VC status:`, error);
+  }
 
   // Mute all members in the voice channel
   await setVoiceChannelMute(client, session, true);
@@ -268,29 +278,31 @@ async function completeFocusSession(session, client) {
         const participantData = session.participants.get(userId);
         const joinedAt = participantData ? participantData.joinedAt : session.startedAt;
         const timeInSessionMs = Date.now() - joinedAt;
-        
+
         // Credit is minimum of (session duration, time present)
         // Convert to minutes, round to 1 decimal
         const sessionDurationMs = session.duration * 60 * 1000;
         const creditMinutes = Math.min(session.duration, Math.round(timeInSessionMs / 60000 * 10) / 10);
 
-        // Record session with gaming data (initially invalid, will be validated after AFK check)
+        // Session is valid only if no gaming was detected
+        const isValid = gamingMinutes === 0;
+
+        // Record session (valid if no gaming detected)
         const { milestone, sessionId } = await studyStatsStore.recordSession(
           userId,
           session.guildId,
           creditMinutes, // Use calculated credit instead of full duration
           {
-            valid: false, // Will be set to true only if AFK check passes AND no gaming
+            valid: isValid, // Valid if no gaming detected
             gamingMinutes: gamingMinutes,
-            afkCheckPassed: false
+            afkCheckPassed: true // No longer using AFK check
           }
         );
 
-        // Send AFK check DM
-        await afkChecker.sendAFKCheck(member.user, sessionId, session.guildId, creditMinutes);
-
-        // Note: Milestones will only be announced after AFK check passes
-        // So we don't announce them here anymore
+        // Announce milestone if reached
+        if (milestone && isValid) {
+          await announceMilestone(client, member.user, session.guildId, milestone);
+        }
       }
 
       console.log(`[Study] Focus session ${session.id} completed (Pomodoro #${session.pomodoroCount}) with ${participantCount} participants`);
