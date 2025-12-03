@@ -235,6 +235,7 @@ export async function handleShowStats(interaction) {
   const ranking = studyStatsStore.getUserRanking(userId, guildId);
   const guildStats = studyStatsStore.getGuildStats(guildId);
   const streak = studyStatsStore.getStudyStreak(userId, guildId);
+  const winningChances = studyStatsStore.getWinningChances(userId, guildId);
   const tickets = studyStatsStore.calculateTickets(stats.lifetimeHours, stats.currentPeriodHours);
 
   const allSessions = studyStatsStore.data.sessions.filter(
@@ -332,6 +333,24 @@ export async function handleShowStats(interaction) {
       { name: "Your Tickets", value: `🎫 **${tickets}**`, inline: true },
       { name: "Success Rate", value: `${validationRate}`, inline: true },
 
+      // Winning Chances
+      { name: "🎰 Next Giveaway Odds", value: "━━━━━━━━━━━━━━━", inline: false },
+      {
+        name: "Win Chance",
+        value: `**${winningChances.winChance}%**`,
+        inline: true
+      },
+      {
+        name: "Total Pool",
+        value: `${winningChances.totalTickets} tickets`,
+        inline: true
+      },
+      {
+        name: "Your Share",
+        value: `${tickets}/${winningChances.totalTickets}`,
+        inline: true
+      },
+
       // Progress & Goals
       { name: "🎯 Next Milestone", value: "━━━━━━━━━━━━━━━", inline: false },
       {
@@ -393,10 +412,14 @@ export async function handleShowStats(interaction) {
   let footerText = "";
   if (ranking.rank === 1) {
     footerText = "👑 Defend your throne! Stay consistent!";
+  } else if (winningChances.winChance >= 20) {
+    footerText = `🎰 ${winningChances.winChance}% chance to win! You're in a great position!`;
   } else if (ranking.rank <= 3) {
     footerText = "🔥 So close to the top! Keep pushing!";
   } else if (ranking.percentile >= 75) {
     footerText = "⚡ You're in the top tier! Don't stop now!";
+  } else if (winningChances.winChance < 5 && stats.currentPeriodHours < 10) {
+    footerText = `📈 Study more to boost your ${winningChances.winChance}% odds!`;
   } else if (hoursToNext <= 5) {
     footerText = `🎯 Just ${hoursToNext.toFixed(1)}h until your next milestone!`;
   } else if (streak.currentStreak >= 3) {

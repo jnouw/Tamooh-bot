@@ -210,6 +210,9 @@ export async function handleViolationStats(interaction) {
  * Handle /help command - show all available commands
  */
 export async function handleHelpCommand(interaction) {
+  const { OWNER_ID } = await import("../services/study/config.js");
+  const isOwner = interaction.user.id === OWNER_ID;
+
   const embed = new EmbedBuilder()
     .setTitle("📚 Tamooh Bot - Command List")
     .setColor(0x5865F2)
@@ -253,8 +256,24 @@ export async function handleHelpCommand(interaction) {
           "• Manage study role notifications",
         inline: false,
       }
-    )
-    .setFooter({ text: "Study consistently and good luck! 💚" });
+    );
+
+  // Add owner-only commands section if user is owner
+  if (isOwner) {
+    embed.addFields({
+      name: "⚙️ Admin Commands (! prefix) - Owner Only",
+      value:
+        "• `!violations` - View detailed violation report\n" +
+        "  Shows users with AFK or gaming violations during study sessions\n\n" +
+        "• `!reset_period` - Reset giveaway period (soft reset)\n" +
+        "  Resets current period hours to 0, keeps lifetime hours forever\n" +
+        "  Use after each giveaway for fair competition",
+      inline: false,
+    });
+    embed.setFooter({ text: "Study consistently and good luck! 💚 | Owner mode active 👑" });
+  } else {
+    embed.setFooter({ text: "Study consistently and good luck! 💚" });
+  }
 
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }
