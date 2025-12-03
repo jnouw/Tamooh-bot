@@ -547,6 +547,49 @@ export class StudyStatsStore {
       lastStudyDate
     };
   }
+
+  /**
+   * Get user's winning chances for next giveaway
+   * @param {string} userId - Discord user ID
+   * @param {string} guildId - Discord guild ID
+   * @returns {{ userTickets: number, totalTickets: number, winChance: number, rank: number }}
+   */
+  getWinningChances(userId, guildId) {
+    const leaderboard = this.getLeaderboard(guildId, 9999);
+
+    // Calculate tickets for all users
+    let totalTickets = 0;
+    let userTickets = 0;
+    let userRank = 0;
+
+    const ticketsMap = leaderboard.map((user, index) => {
+      const tickets = this.calculateTickets(user.lifetimeHours, user.currentPeriodHours);
+      totalTickets += tickets;
+
+      if (user.userId === userId) {
+        userTickets = tickets;
+        userRank = index + 1;
+      }
+
+      return { userId: user.userId, tickets };
+    });
+
+    // If user not on leaderboard (no valid sessions), they have baseline tickets
+    if (userTickets === 0 && leaderboard.findIndex(u => u.userId === userId) === -1) {
+      userTickets = this.calculateTickets(0, 0); // Baseline 30 tickets
+      totalTickets += userTickets;
+      userRank = leaderboard.length + 1;
+    }
+
+    const winChance = totalTickets > 0 ? (userTickets / totalTickets) * 100 : 0;
+
+    return {
+      userTickets,
+      totalTickets,
+      winChance: Math.round(winChance * 100) / 100, // Two decimal places
+      rank: userRank
+    };
+  }
 }
 
 // Export singleton instance
