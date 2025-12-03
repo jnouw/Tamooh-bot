@@ -101,6 +101,9 @@ export async function handleStudyLeaderboard(interaction) {
     };
   });
 
+  // SORT BY TICKETS (descending) - this is what determines giveaway winners!
+  usersWithTickets.sort((a, b) => b.tickets - a.tickets);
+
   // Calculate ACTUAL total tickets across ALL eligible users (matching giveaway logic)
   // This ensures win chances are accurate, not overstated
   await interaction.guild.members.fetch();
