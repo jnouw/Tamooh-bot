@@ -443,8 +443,10 @@ export class StudyStatsStore {
     const leaderboard = this.getLeaderboard(guildId, 9999); // Get all users
     const userIndex = leaderboard.findIndex(u => u.userId === userId);
 
-    const rank = userIndex === -1 ? leaderboard.length + 1 : userIndex + 1;
-    const totalUsers = leaderboard.length || 1;
+    // If user not on leaderboard, they're last (unranked)
+    const isUnranked = userIndex === -1;
+    const rank = isUnranked ? leaderboard.length + 1 : userIndex + 1;
+    const totalUsers = isUnranked ? leaderboard.length + 1 : leaderboard.length || 1;
     const percentile = Math.round(((totalUsers - rank + 1) / totalUsers) * 100);
 
     return {

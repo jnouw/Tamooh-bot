@@ -288,7 +288,7 @@ export async function handleShowStats(interaction) {
     : `${Math.abs(vsAverage).toFixed(1)}h below average`;
 
   // Competitive description
-  let description = `${rankEmoji} **Rank #${ranking.rank}** out of ${ranking.totalUsers} (Top ${100 - ranking.percentile}%)\n`;
+  let description = `${rankEmoji} **Rank #${ranking.rank}** out of ${ranking.totalUsers} (Top ${ranking.percentile}%)\n`;
   if (ranking.rank === 1) {
     description += "🏆 **You're dominating the leaderboard!**";
   } else if (ranking.percentile >= 90) {
@@ -317,7 +317,7 @@ export async function handleShowStats(interaction) {
       // Competitive Overview
       { name: "🏅 Server Standing", value: "━━━━━━━━━━━━━━━", inline: false },
       { name: "Your Rank", value: `#${ranking.rank} / ${ranking.totalUsers}`, inline: true },
-      { name: "Percentile", value: `Top ${100 - ranking.percentile}%`, inline: true },
+      { name: "Percentile", value: `Top ${ranking.percentile}%`, inline: true },
       { name: "Gap to Leader", value: gapText, inline: true },
 
       // Core Stats
