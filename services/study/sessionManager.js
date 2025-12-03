@@ -120,29 +120,6 @@ export async function startSuggestiveTimer(session, client) {
 
   console.log(`[Study] Starting suggestive 50+10 timer for open mic session ${session.id}`);
 
-  // Send initial message
-  try {
-    const guild = client.guilds.cache.get(session.guildId);
-    const textChannel = guild?.channels.cache.get(session.textChannelId);
-
-    if (textChannel) {
-      const embed = new EmbedBuilder()
-        .setTitle("🎙️ Open Mic Session Started")
-        .setColor(0x5865F2)
-        .setDescription(
-          "**Suggested Schedule:**\n" +
-          "• 50 minutes of focused study\n" +
-          "• 10 minute break\n\n" +
-          "*This is just a suggestion - study at your own pace!*"
-        )
-        .setTimestamp();
-
-      await textChannel.send({ embeds: [embed] });
-    }
-  } catch (error) {
-    console.error(`[Study] Failed to send initial message for open mic session ${session.id}:`, error);
-  }
-
   // Timer for 50-minute focus suggestion
   const focusMs = 50 * 60 * 1000;
   session.timer = setTimeout(async () => {
@@ -163,23 +140,6 @@ async function completeSuggestiveFocus(session, client) {
   console.log(`[Study] Suggestive focus phase complete for open mic session ${session.id}`);
 
   try {
-    const guild = client.guilds.cache.get(session.guildId);
-    const textChannel = guild?.channels.cache.get(session.textChannelId);
-
-    if (textChannel) {
-      const embed = new EmbedBuilder()
-        .setTitle("⏰ Focus Time Complete!")
-        .setColor(0xF1C40F)
-        .setDescription(
-          "**50 minutes of study complete!** 🎉\n\n" +
-          "Consider taking a 10-minute break to refresh.\n" +
-          "*This is just a suggestion - continue studying if you're in the zone!*"
-        )
-        .setTimestamp();
-
-      await textChannel.send({ embeds: [embed] });
-    }
-
     // Start suggestive break timer
     session.phase = "break";
     session.startedAt = Date.now();
@@ -207,24 +167,7 @@ async function completeSuggestiveBreak(session, client) {
   console.log(`[Study] Suggestive break complete for open mic session ${session.id}`);
 
   try {
-    const guild = client.guilds.cache.get(session.guildId);
-    const textChannel = guild?.channels.cache.get(session.textChannelId);
-
     session.pomodoroCount++;
-
-    if (textChannel) {
-      const embed = new EmbedBuilder()
-        .setTitle("🔔 Break Time Over!")
-        .setColor(0x5865F2)
-        .setDescription(
-          "**10-minute break complete!**\n\n" +
-          `Ready for another focus session? (Session #${session.pomodoroCount + 1})\n` +
-          "*This is just a suggestion - take your time!*"
-        )
-        .setTimestamp();
-
-      await textChannel.send({ embeds: [embed] });
-    }
 
     // Start next suggestive focus cycle
     await startSuggestiveTimer(session, client);
