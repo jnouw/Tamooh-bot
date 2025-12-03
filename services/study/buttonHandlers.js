@@ -1,14 +1,17 @@
-import Discord from "discord.js";
+import Discord, {
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
+} from "discord.js";
 import { studyStatsStore } from "../StudyStatsStore.js";
-import { sessionStateStore } from "../SessionStateStore.js";
-import { createSession, startPomodoroTimer, cancelSession, state } from "./sessionManager.js";
-import { startGroupSession } from "./queueManager.js";
+import { createSession, startPomodoroTimer, findMatchingSession, getActiveSessions } from "./sessionManager.js";
 import { logToChannel, autoAssignStudyRole, getMotivationalMessage } from "./utils.js";
 import {
   VOICE_CATEGORY_ID,
   DELETE_DELAY_MS,
-  GROUP_QUEUE_THRESHOLD,
-  QUEUE_TIMEOUT_MS,
   STUDY_ROLE_ID,
   STUDY_CHANNEL_ID
 } from "./config.js";
@@ -16,244 +19,202 @@ import {
 const { ChannelType, EmbedBuilder } = Discord;
 
 /**
- * Handle solo Pomodoro button click
+ * Handle "Start Studying" button click - opens topic modal
  */
-export async function handleSoloPomodoro(interaction, client, duration) {
-  await interaction.deferReply({ ephemeral: true });
+export async function handleStudyStart(interaction, mode, duration) {
+  const customId = `study_topic:${mode}:${duration || "null"}`;
 
-  // Auto-assign study role
+  const modal = new ModalBuilder()
+    .setCustomId(customId)
+    .setTitle("What are you studying?");
+
+  const topicInput = new TextInputBuilder()
+    .setCustomId("topic")
+    .setLabel("Topic (e.g. Math, CS101)")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("Enter your subject...")
+    .setRequired(true)
+    .setMaxLength(30);
+
+  modal.addComponents(new ActionRowBuilder().addComponents(topicInput));
+  await interaction.showModal(modal);
+}
+
+/**
+ * Handle topic submission - join existing or create new session
+ */
+export async function handleTopicSubmit(interaction, client, mode, duration, topic) {
+  await interaction.deferReply({ ephemeral: true });
   await autoAssignStudyRole(interaction.member);
 
   const guild = interaction.guild;
   const user = interaction.user;
   const username = interaction.member.displayName || user.username;
 
-  // Remove user from both queues if they're in any
-  for (const dur of [25, 50]) {
-    if (state.groupQueues[dur].has(user.id)) {
-      state.groupQueues[dur].delete(user.id);
-      const queueSize = state.groupQueues[dur].size;
-
-      // If queue is now empty, clear timeout
-      if (queueSize === 0) {
-        if (state.queueTimeouts[dur]) {
-          clearTimeout(state.queueTimeouts[dur]);
-          state.queueTimeouts[dur] = null;
-        }
-        state.queueGuilds[dur] = null;
-        state.queueChannels[dur] = null;
-        console.log(`[Study] ${dur}min queue emptied (user started solo session), timeout cleared`);
-      } else {
-        console.log(`[Study] User removed from ${dur}min queue to start solo session. Queue size: ${queueSize}`);
-      }
-
-      // Persist state
-      sessionStateStore.saveState(state).catch(err =>
-        console.error('[Study] Failed to save state after removing from queue:', err)
-      );
-      break; // User can only be in one queue
-    }
-  }
-
   try {
-    // Create voice channel
-    const vcOptions = {
-      name: `Study – Solo ${duration}min – ${username}`,
-      type: ChannelType.GuildVoice,
-    };
-
-    if (VOICE_CATEGORY_ID) {
-      vcOptions.parent = VOICE_CATEGORY_ID;
+    // Join an existing matching session if present
+    const existingSession = findMatchingSession(guild.id, topic, mode, duration);
+    if (existingSession) {
+      const vc = guild.channels.cache.get(existingSession.voiceChannelId);
+      if (vc) {
+        if (interaction.member.voice.channel) {
+          try {
+            await interaction.member.voice.setChannel(vc);
+            await interaction.editReply({
+              content: `✅ **Joined existing session!**\n\nTopic: **${topic}**\nMode: **${mode === "pomodoro" ? `${duration}m Pomodoro` : "Open Mic"}**\n\nMoved you to <#${vc.id}>`
+            });
+          } catch {
+            await interaction.editReply({
+              content: `✅ **Joined existing session!**\n\nTopic: **${topic}**\nMode: **${mode === "pomodoro" ? `${duration}m Pomodoro` : "Open Mic"}**\n\nClick to join: <#${vc.id}>`
+            });
+          }
+        } else {
+          await interaction.editReply({
+            content: `✅ **Joined existing session!**\n\nTopic: **${topic}**\nMode: **${mode === "pomodoro" ? `${duration}m Pomodoro` : "Open Mic"}**\n\nClick to join: <#${vc.id}>`
+          });
+        }
+        return;
+      }
     }
+
+    // Create a new session
+    const emoji = mode === "pomodoro" ? "🍅" : "🎙️";
+    const durationStr = mode === "pomodoro" ? `(${duration}m)` : "";
+    const vcName = `${emoji} Study ${topic} ${durationStr}`.trim();
+
+    const vcOptions = {
+      name: vcName,
+      type: ChannelType.GuildVoice
+    };
+    if (VOICE_CATEGORY_ID) vcOptions.parent = VOICE_CATEGORY_ID;
 
     const vc = await guild.channels.create(vcOptions);
 
-    // Create session (pass username for VC name updates)
-    const session = createSession("solo", guild.id, vc.id, interaction.channel.id, user.id, duration, username);
+    const session = createSession(
+      mode,
+      guild.id,
+      vc.id,
+      interaction.channel.id,
+      user.id,
+      duration,
+      username,
+      topic,
+      mode
+    );
 
-    // Move user to the voice channel if they're in one
-    const member = interaction.member;
     let movedUser = false;
-    if (member.voice.channel) {
+    if (interaction.member.voice.channel) {
       try {
-        await member.voice.setChannel(vc);
+        await interaction.member.voice.setChannel(vc);
         movedUser = true;
-        console.log(`[Study] Moved ${username} into solo ${duration}min session VC`);
       } catch (error) {
-        console.error(`[Study] Failed to move user to VC:`, error.message);
+        console.error("[Study] Failed to move user to VC:", error.message);
       }
     }
 
-    // Start timer
-    await startPomodoroTimer(session, client);
+    if (mode === "pomodoro") {
+      await startPomodoroTimer(session, client);
+    }
 
-    // Log session start
     const startEmbed = new EmbedBuilder()
-      .setTitle("📚 Solo Session Started")
+      .setTitle(`${emoji} Study Session Started`)
       .setColor(0x5865F2)
       .addFields(
-        { name: "User", value: `<@${user.id}>`, inline: true },
-        { name: "Session ID", value: `#${session.id}`, inline: true },
-        { name: "Duration", value: `${duration} minutes`, inline: true },
+        { name: "Topic", value: topic, inline: true },
+        { name: "Mode", value: mode === "pomodoro" ? `${duration}m Pomodoro` : "Open Mic", inline: true },
+        { name: "Creator", value: `<@${user.id}>`, inline: true },
         { name: "Voice Channel", value: `<#${vc.id}>`, inline: false }
       )
       .setTimestamp();
     await logToChannel(client, guild.id, startEmbed);
 
-    // Reply with jump link
     await interaction.editReply({
       content: movedUser
-        ? `✅ **Solo ${duration}min session created!**\n\n⏱️ Timer started. Good luck!`
-        : `✅ **Solo ${duration}min session created!**\n\nClick to join: <#${vc.id}>\n\n⏱️ Timer started. Good luck!`,
+        ? `✅ **Session created!**\n\nTopic: **${topic}**\nMode: **${mode === "pomodoro" ? `${duration}m Pomodoro` : "Open Mic"}**\n\nGood luck!`
+        : `✅ **Session created!**\n\nTopic: **${topic}**\nMode: **${mode === "pomodoro" ? `${duration}m Pomodoro` : "Open Mic"}**\n\nClick to join: <#${vc.id}>`
     });
-
-    console.log(`[Study] Solo ${duration}min session created for ${username}`);
   } catch (error) {
-    console.error("[Study] Error creating solo session:", error);
+    console.error("[Study] Error creating session:", error);
     await interaction.editReply({
-      content: "Failed to create study channel. Please try again.",
+      content: "Failed to create study session. Please try again."
     });
   }
 }
 
 /**
- * Handle group queue button click
+ * Handle "Find Active Groups" button
  */
-export async function handleGroupQueue(interaction, client, duration) {
+export async function handleFindGroups(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
-  // Auto-assign study role
-  await autoAssignStudyRole(interaction.member);
+  const sessions = getActiveSessions(interaction.guild.id);
 
-  const userId = interaction.user.id;
-
-  // Check if already in any queue
-  for (const dur of [25, 50]) {
-    if (state.groupQueues[dur].has(userId)) {
-      return interaction.editReply({
-        content: `You're already in the ${dur}min group queue!`,
-      });
-    }
+  if (sessions.length === 0) {
+    return interaction.editReply({
+      content: "❌ No active study groups found. Start one yourself!"
+    });
   }
 
-  // Cancel any active solo session for this user
-  for (const [vcId, session] of state.activeSessions) {
-    if (session.type === "solo" && session.creatorId === userId) {
-      console.log(`[Study] Canceling user's solo session ${session.id} (joining ${duration}min group queue)`);
-      await cancelSession(session, client, `User joined ${duration}min group queue`);
-      break; // User can only have one solo session
+  const embed = new EmbedBuilder()
+    .setTitle("🔍 Active Study Groups")
+    .setDescription("Click a button below to join a group:")
+    .setColor(0x5865F2);
+
+  const rows = [];
+  let currentRow = new ActionRowBuilder();
+
+  for (let i = 0; i < Math.min(sessions.length, 10); i++) {
+    const s = sessions[i];
+    const emoji = s.mode === "pomodoro" ? "🍅" : "🎙️";
+    const label = `${s.topic} (${s.mode === "pomodoro" ? `${s.duration}m` : "Open"})`;
+    const count = s.participants.size;
+    const labelWithCount = `${label} - ${count}👤`;
+
+    const btn = new ButtonBuilder()
+      .setCustomId(`study_join_direct:${s.voiceChannelId}`)
+      .setLabel(labelWithCount)
+      .setEmoji(emoji)
+      .setStyle(ButtonStyle.Secondary);
+
+    currentRow.addComponents(btn);
+    if (currentRow.components.length === 5) {
+      rows.push(currentRow);
+      currentRow = new ActionRowBuilder();
     }
   }
+  if (currentRow.components.length > 0) rows.push(currentRow);
 
-  // Add to the specific duration queue
-  state.groupQueues[duration].add(userId);
-  const queueSize = state.groupQueues[duration].size;
+  await interaction.editReply({
+    embeds: [embed],
+    components: rows
+  });
+}
 
-  // Persist state
-  sessionStateStore.saveState(state).catch(err =>
-    console.error('[Study] Failed to save state after adding to queue:', err)
-  );
+/**
+ * Handle direct join button click
+ */
+export async function handleJoinDirect(interaction, voiceChannelId) {
+  await interaction.deferReply({ ephemeral: true });
 
-  // Start timeout if this is the first person
-  if (queueSize === 1) {
-    state.queueGuilds[duration] = interaction.guild;
-    state.queueChannels[duration] = interaction.channel;
+  const guild = interaction.guild;
+  const vc = guild.channels.cache.get(voiceChannelId);
 
-    state.queueTimeouts[duration] = setTimeout(async () => {
-      try {
-        if (state.groupQueues[duration].size > 0) {
-          const msg = await interaction.channel.send({
-            content: `⏰ ${duration}min queue timeout! Starting session with ${state.groupQueues[duration].size} ${state.groupQueues[duration].size === 1 ? 'person' : 'people'}...`
-          });
-          // Auto-delete timeout message after 1 minute
-          setTimeout(() => msg.delete().catch(err => {
-            console.log(`[Study] Could not delete queue timeout message: ${err.message}`);
-          }), DELETE_DELAY_MS);
-          await startGroupSession(interaction.guild, interaction.channel, client, duration);
-        }
-      } catch (error) {
-        console.error(`[Study] ${duration}min queue timeout error:`, error);
-        // Clear queue and timeout on error to prevent stuck state
-        state.groupQueues[duration].clear();
-        state.queueTimeouts[duration] = null;
-        state.queueGuilds[duration] = null;
-        state.queueChannels[duration] = null;
-        sessionStateStore.saveState(state).catch(err =>
-          console.error('[Study] Failed to save state after queue timeout error:', err)
-        );
-        // Notify users
-        try {
-          await interaction.channel.send({
-            content: `❌ Failed to start ${duration}min group session. Please try joining the queue again.`
-          });
-        } catch {}
-      }
-    }, QUEUE_TIMEOUT_MS);
+  if (!vc) {
+    return interaction.editReply({ content: "❌ This session has ended." });
+  }
 
-    console.log(`[Study] ${duration}min queue timeout started (${QUEUE_TIMEOUT_MS / 60000} minutes)`);
+  if (interaction.member.voice.channel) {
+    try {
+      await interaction.member.voice.setChannel(vc);
+      return interaction.editReply({ content: `✅ **Joined!**\n\nMoved you to <#${vc.id}>` });
+    } catch {
+      // fall through to link reply
+    }
   }
 
   await interaction.editReply({
-    content: `✅ Added to ${duration}min group queue!\n\n**Queue size:** ${queueSize}/${GROUP_QUEUE_THRESHOLD}\n\n${queueSize === 1 ? `⏰ Session will auto-start in ${QUEUE_TIMEOUT_MS / 60000} minutes if not full` : ''}`,
+    content: `✅ **Joined!**\n\nClick to join: <#${vc.id}>`
   });
-
-  // Announce in channel with role ping (if not full yet)
-  if (queueSize < GROUP_QUEUE_THRESHOLD) {
-    const rolePing = STUDY_ROLE_ID ? `<@&${STUDY_ROLE_ID}>` : "";
-    const announcement = rolePing
-      ? `${rolePing} 👥 <@${userId}> joined the ${duration}min study queue! **(${queueSize}/${GROUP_QUEUE_THRESHOLD})**\n\nJoin now to start a group session!`
-      : `👥 <@${userId}> joined the ${duration}min study queue (${queueSize}/${GROUP_QUEUE_THRESHOLD})`;
-
-    try {
-      const msg = await interaction.channel.send({
-        content: announcement,
-        allowedMentions: {
-          roles: STUDY_ROLE_ID ? [STUDY_ROLE_ID] : [],
-          users: [userId]
-        }
-      });
-
-      // Auto-delete queue announcements after 1 minute
-      setTimeout(() => msg.delete().catch(err => {
-        console.log(`[Study] Could not delete queue announcement: ${err.message}`);
-      }), DELETE_DELAY_MS);
-
-    } catch (error) {
-      // If role ping fails (missing permissions), send without role ping
-      if (error.code === 50013) {
-        console.warn('[Study] Missing permission to mention role, sending without role ping');
-        const msg = await interaction.channel.send({
-          content: `👥 <@${userId}> joined the ${duration}min study queue! **(${queueSize}/${GROUP_QUEUE_THRESHOLD})**\n\nJoin now to start a group session!`,
-          allowedMentions: { users: [userId] }
-        });
-        setTimeout(() => msg.delete().catch(err => {
-          console.log(`[Study] Could not delete queue announcement (fallback): ${err.message}`);
-        }), DELETE_DELAY_MS);
-      } else {
-        console.error('[Study] Failed to send queue announcement:', error);
-      }
-    }
-  }
-
-  // Start session if threshold reached
-  if (queueSize >= GROUP_QUEUE_THRESHOLD) {
-    // Clear timeout since we're starting now
-    if (state.queueTimeouts[duration]) {
-      clearTimeout(state.queueTimeouts[duration]);
-      state.queueTimeouts[duration] = null;
-    }
-    try {
-      await startGroupSession(interaction.guild, interaction.channel, client, duration);
-    } catch (error) {
-      console.error(`[Study] Failed to start group session:`, error);
-      // startGroupSession already clears the queue, so just notify users
-      try {
-        await interaction.channel.send({
-          content: `❌ Failed to start ${duration}min group session. Please try joining the queue again.`
-        });
-      } catch {}
-    }
-  }
 }
 
 /**
@@ -261,38 +222,30 @@ export async function handleGroupQueue(interaction, client, duration) {
  */
 export async function handleShowStats(interaction) {
   await interaction.deferReply({ ephemeral: true });
-
-  // Auto-assign study role
   await autoAssignStudyRole(interaction.member);
 
   const userId = interaction.user.id;
   const guildId = interaction.guild.id;
 
-  // Get comprehensive stats
   const stats = studyStatsStore.getUserStats(userId, guildId);
   const winStats = studyStatsStore.getUserWinStats(userId, guildId);
-
-  // Calculate tickets for next giveaway
   const tickets = studyStatsStore.calculateTickets(stats.lifetimeHours, stats.currentPeriodHours);
 
-  // Get all sessions (valid and invalid) for validation metrics
   const allSessions = studyStatsStore.data.sessions.filter(
-    s => s.userId === userId && s.guildId === guildId
+    (s) => s.userId === userId && s.guildId === guildId
   );
   const totalAttempts = allSessions.length;
-  const invalidSessions = allSessions.filter(s => !s.valid).length;
-  const validationRate = totalAttempts > 0 ? ((stats.totalSessions / totalAttempts) * 100).toFixed(1) + '%' : 'N/A';
+  const invalidSessions = allSessions.filter((s) => !s.valid).length;
+  const validationRate =
+    totalAttempts > 0 ? ((stats.totalSessions / totalAttempts) * 100).toFixed(1) + "%" : "N/A";
 
-  // Calculate average session length
-  const avgSessionLength = stats.totalSessions > 0
-    ? (stats.lifetimeHours / stats.totalSessions).toFixed(1)
-    : 0;
+  const avgSessionLength =
+    stats.totalSessions > 0 ? (stats.lifetimeHours / stats.totalSessions).toFixed(1) : 0;
 
-  // Build the embed
   const embed = new EmbedBuilder()
     .setTitle("📊 Your Comprehensive Study Stats")
     .setColor(0x5865F2)
-    .setDescription(`Here's your complete study journey breakdown!`)
+    .setDescription("Here's your complete study journey breakdown!")
     .addFields(
       { name: "📚 Study Summary", value: "━━━━━━━━━━━━━━━", inline: false },
       { name: "Valid Sessions", value: `${stats.totalSessions}`, inline: true },
@@ -301,7 +254,13 @@ export async function handleShowStats(interaction) {
 
       { name: "📅 Current Period", value: "━━━━━━━━━━━━━━━", inline: false },
       { name: "Period Hours", value: `${stats.currentPeriodHours}h`, inline: true },
-      { name: "Period Sessions", value: `${allSessions.filter(s => s.valid && s.timestamp >= (studyStatsStore.data.giveawayPeriods[guildId] || 0)).length}`, inline: true },
+      {
+        name: "Period Sessions",
+        value: `${allSessions.filter(
+          (s) => s.valid && s.timestamp >= (studyStatsStore.data.giveawayPeriods[guildId] || 0)
+        ).length}`,
+        inline: true
+      },
       { name: "Next Giveaway Tickets", value: `🎫 ${tickets}`, inline: true },
 
       { name: "✅ Session Quality", value: "━━━━━━━━━━━━━━━", inline: false },
@@ -317,15 +276,14 @@ export async function handleShowStats(interaction) {
     .setFooter({ text: getMotivationalMessage(stats.totalSessions) })
     .setTimestamp();
 
-  // Add recent wins if any
   if (winStats.recentWins.length > 0) {
     const recentWinsList = winStats.recentWins
       .slice(0, 3)
-      .map(w => {
+      .map((w) => {
         const date = new Date(w.timestamp);
         return `• ${w.prizeName} (${date.toLocaleDateString()})`;
       })
-      .join('\n');
+      .join("\n");
 
     embed.addFields({
       name: "🎁 Recent Wins",
@@ -338,64 +296,13 @@ export async function handleShowStats(interaction) {
 }
 
 /**
- * Handle leaving the queue
+ * Handle leaving the (removed) queue
  */
 export async function handleQueueLeave(interaction) {
   await interaction.deferReply({ ephemeral: true });
-
-  const userId = interaction.user.id;
-
-  // Check which queue the user is in
-  let foundInQueue = null;
-  for (const dur of [25, 50]) {
-    if (state.groupQueues[dur].has(userId)) {
-      foundInQueue = dur;
-      break;
-    }
-  }
-
-  // Check if in any queue
-  if (!foundInQueue) {
-    return interaction.editReply({
-      content: "You're not in any queue.",
-    });
-  }
-
-  // Remove from the specific queue
-  state.groupQueues[foundInQueue].delete(userId);
-  const queueSize = state.groupQueues[foundInQueue].size;
-
-  // If queue is now empty, clear timeout
-  if (queueSize === 0) {
-    if (state.queueTimeouts[foundInQueue]) {
-      clearTimeout(state.queueTimeouts[foundInQueue]);
-      state.queueTimeouts[foundInQueue] = null;
-    }
-    state.queueGuilds[foundInQueue] = null;
-    state.queueChannels[foundInQueue] = null;
-    console.log(`[Study] ${foundInQueue}min queue emptied, timeout cleared`);
-  }
-
-  // Persist state
-  sessionStateStore.saveState(state).catch(err =>
-    console.error('[Study] Failed to save state after removing from queue:', err)
-  );
-
   await interaction.editReply({
-    content: `✅ Removed from ${foundInQueue}min queue.\n\n${queueSize > 0 ? `**Queue size:** ${queueSize}/${GROUP_QUEUE_THRESHOLD}` : 'Queue is now empty.'}`,
+    content: "Queueing was removed; sessions start immediately now. There's no queue to leave."
   });
-
-  // Announce if queue still has people
-  if (queueSize > 0) {
-    const msg = await interaction.channel.send({
-      content: `👋 <@${userId}> left the ${foundInQueue}min study queue (${queueSize}/${GROUP_QUEUE_THRESHOLD})`,
-      allowedMentions: { users: [userId] }
-    });
-    // Auto-delete leave message after 1 minute
-    setTimeout(() => msg.delete().catch(err => {
-      console.log(`[Study] Could not delete leave message: ${err.message}`);
-    }), DELETE_DELAY_MS);
-  }
 }
 
 /**
@@ -406,7 +313,7 @@ export async function handleRoleAdd(interaction) {
 
   if (!STUDY_ROLE_ID) {
     return interaction.editReply({
-      content: "❌ Study role not configured. Contact an admin.",
+      content: "❌ Study role not configured. Contact an admin."
     });
   }
 
@@ -416,24 +323,24 @@ export async function handleRoleAdd(interaction) {
 
     if (!role) {
       return interaction.editReply({
-        content: "❌ Study role not found. Contact an admin.",
+        content: "❌ Study role not found. Contact an admin."
       });
     }
 
     if (member.roles.cache.has(STUDY_ROLE_ID)) {
       return interaction.editReply({
-        content: "✅ You already have study notifications enabled!",
+        content: "✅ You already have study notifications enabled!"
       });
     }
 
     await member.roles.add(role);
     await interaction.editReply({
-      content: `✅ You'll now be notified when study sessions start!\n\nRole: ${role}`,
+      content: `✅ You'll now be notified when study sessions start!\n\nRole: ${role}`
     });
   } catch (error) {
     console.error("[Study] Error adding role:", error);
     await interaction.editReply({
-      content: "❌ Failed to add role. Make sure the bot has permission to manage roles.",
+      content: "❌ Failed to add role. Make sure the bot has permission to manage roles."
     });
   }
 }
@@ -446,7 +353,7 @@ export async function handleRoleRemove(interaction) {
 
   if (!STUDY_ROLE_ID) {
     return interaction.editReply({
-      content: "❌ Study role not configured. Contact an admin.",
+      content: "❌ Study role not configured. Contact an admin."
     });
   }
 
@@ -456,24 +363,24 @@ export async function handleRoleRemove(interaction) {
 
     if (!role) {
       return interaction.editReply({
-        content: "❌ Study role not found. Contact an admin.",
+        content: "❌ Study role not found. Contact an admin."
       });
     }
 
     if (!member.roles.cache.has(STUDY_ROLE_ID)) {
       return interaction.editReply({
-        content: "✅ You don't have study notifications enabled.",
+        content: "✅ You don't have study notifications enabled."
       });
     }
 
     await member.roles.remove(role);
     await interaction.editReply({
-      content: "✅ Study notifications disabled. You can re-enable them anytime!",
+      content: "✅ Study notifications disabled. You can re-enable them anytime!"
     });
   } catch (error) {
     console.error("[Study] Error removing role:", error);
     await interaction.editReply({
-      content: "❌ Failed to remove role. Make sure the bot has permission to manage roles.",
+      content: "❌ Failed to remove role. Make sure the bot has permission to manage roles."
     });
   }
 }
@@ -486,7 +393,7 @@ export async function handleStudyGroupJoin(interaction) {
 
   if (!STUDY_ROLE_ID || !STUDY_CHANNEL_ID) {
     return interaction.editReply({
-      content: "❌ Study group not configured. Contact an admin.",
+      content: "❌ Study group not configured. Contact an admin."
     });
   }
 
@@ -497,30 +404,30 @@ export async function handleStudyGroupJoin(interaction) {
 
     if (!role) {
       return interaction.editReply({
-        content: "❌ Study role not found. Contact an admin.",
+        content: "❌ Study role not found. Contact an admin."
       });
     }
 
     if (!channel) {
       return interaction.editReply({
-        content: "❌ Study channel not found. Contact an admin.",
+        content: "❌ Study channel not found. Contact an admin."
       });
     }
 
     if (member.roles.cache.has(STUDY_ROLE_ID)) {
       return interaction.editReply({
-        content: `✅ You're already a member of the study group!\n\nYou can access the channel here: ${channel}`,
+        content: `✅ You're already a member of the study group!\n\nYou can access the channel here: ${channel}`
       });
     }
 
     await member.roles.add(role);
     await interaction.editReply({
-      content: `✅ Welcome to the study group!\n\nYou now have access to ${channel}\n\nRole: ${role}`,
+      content: `✅ Welcome to the study group!\n\nYou now have access to ${channel}\n\nRole: ${role}`
     });
   } catch (error) {
     console.error("[Study] Error joining study group:", error);
     await interaction.editReply({
-      content: "❌ Failed to join study group. Make sure the bot has permission to manage roles.",
+      content: "❌ Failed to join study group. Make sure the bot has permission to manage roles."
     });
   }
 }

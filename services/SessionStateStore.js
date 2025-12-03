@@ -17,14 +17,6 @@ export class SessionStateStore {
     this.data = {
       sessionCounter: 0,
       activeSessions: [], // Array of session objects
-      groupQueues: {
-        25: [], // Array of user IDs for 25min queue
-        50: []  // Array of user IDs for 50min queue
-      },
-      activeGroupSessions: {
-        25: null, // { voiceChannelId, textChannelId } or null
-        50: null  // { voiceChannelId, textChannelId } or null
-      }
     };
     this.saveQueue = Promise.resolve();
     this.pendingSave = false;
@@ -47,43 +39,24 @@ export class SessionStateStore {
         const raw = await readFile(this.file, 'utf8');
         const loaded = JSON.parse(raw);
 
-        // Backward compatibility: migrate old format to new
-        if (loaded.groupQueue && !loaded.groupQueues) {
-          // Old format detected
-          console.log('[SessionState] Migrating old state format to new multi-queue format');
+        // Migration: If old format with queues exists, just reset to empty (breaking change approved)
+        if (loaded.groupQueues || loaded.groupQueue) {
+          console.log('[SessionState] Detected old state format. Resetting state for new system.');
           this.data = {
             sessionCounter: loaded.sessionCounter || 0,
-            activeSessions: loaded.activeSessions || [],
-            groupQueues: {
-              25: loaded.groupQueue || [], // Migrate old queue to 25min
-              50: []
-            },
-            activeGroupSessions: {
-              25: loaded.activeGroupSession || null, // Migrate old session to 25min
-              50: null
-            }
+            activeSessions: []
           };
         } else {
-          // New format
           this.data = loaded;
         }
 
-        const totalQueued = (this.data.groupQueues[25]?.length || 0) + (this.data.groupQueues[50]?.length || 0);
-        console.log(`[SessionState] Loaded state: ${this.data.activeSessions.length} sessions, ${totalQueued} queued users (${this.data.groupQueues[25]?.length || 0} in 25min, ${this.data.groupQueues[50]?.length || 0} in 50min)`);
+        console.log(`[SessionState] Loaded state: ${this.data.activeSessions.length} sessions`);
       }
     } catch (error) {
       console.error('[SessionState] Failed to load:', error.message);
       this.data = {
         sessionCounter: 0,
-        activeSessions: [],
-        groupQueues: {
-          25: [],
-          50: []
-        },
-        activeGroupSessions: {
-          25: null,
-          50: null
-        }
+        activeSessions: []
       };
     }
   }
@@ -112,32 +85,27 @@ export class SessionStateStore {
       // Don't save the timeout objects (timer, emptyTimeout) - they can't be serialized
       sessionsArray.push({
         id: session.id,
-        type: session.type,
+        type: session.type, // "pomodoro" or "openmic" (formerly "solo"/"group")
+        mode: session.mode, // "pomodoro" or "openmic"
+        topic: session.topic,
         guildId: session.guildId,
         voiceChannelId: session.voiceChannelId,
         textChannelId: session.textChannelId,
         creatorId: session.creatorId,
-        duration: session.duration, // Save duration (25 or 50)
+        duration: session.duration, // 25 or 50 (or null for openmic)
         startedAt: session.startedAt,
         completed: session.completed,
-        phase: session.phase || "focus", // Save phase ("focus" or "break")
-        pomodoroCount: session.pomodoroCount || 0, // Save pomodoro count
-        username: session.username || null, // Save username for solo sessions
-        mutedUsers: Array.from(session.mutedUsers || new Set()) // Save muted users list
+        phase: session.phase || "focus",
+        pomodoroCount: session.pomodoroCount || 0,
+        username: session.username || null,
+        mutedUsers: Array.from(session.mutedUsers || new Set()),
+        participants: Array.from(session.participants.entries()) // Save participants Map as entries array
       });
     }
 
-    // Convert Sets to Arrays for each duration
-    const groupQueues = {
-      25: Array.from(state.groupQueues[25] || new Set()),
-      50: Array.from(state.groupQueues[50] || new Set())
-    };
-
     this.data = {
       sessionCounter: state.sessionCounter,
-      activeSessions: sessionsArray,
-      groupQueues: groupQueues,
-      activeGroupSessions: state.activeGroupSessions
+      activeSessions: sessionsArray
     };
 
     await this.save();
@@ -150,10 +118,8 @@ export class SessionStateStore {
    */
   restoreState(state) {
     const hasActiveSessions = this.data.activeSessions.length > 0;
-    const hasQueuedUsers = (this.data.groupQueues[25]?.length || 0) + (this.data.groupQueues[50]?.length || 0) > 0;
-    const hasActiveGroupSessions = this.data.activeGroupSessions[25] || this.data.activeGroupSessions[50];
 
-    if (!hasActiveSessions && !hasQueuedUsers && !hasActiveGroupSessions) {
+    if (!hasActiveSessions) {
       console.log('[SessionState] No state to restore');
       return false;
     }
@@ -164,32 +130,20 @@ export class SessionStateStore {
     // Restore active sessions (convert Array back to Map)
     state.activeSessions.clear();
     for (const sessionData of this.data.activeSessions) {
+      // Restore participants Map
+      const participantsMap = new Map(sessionData.participants || []);
+
       // Add the session to the map with null timers (will be restarted by recovery logic)
       state.activeSessions.set(sessionData.voiceChannelId, {
         ...sessionData,
+        participants: participantsMap,
         timer: null,
         emptyTimeout: null,
         mutedUsers: new Set(sessionData.mutedUsers || []) // Restore muted users as Set
       });
     }
 
-    // Restore group queues for each duration (convert Arrays back to Sets)
-    state.groupQueues[25].clear();
-    state.groupQueues[50].clear();
-
-    for (const userId of this.data.groupQueues[25] || []) {
-      state.groupQueues[25].add(userId);
-    }
-    for (const userId of this.data.groupQueues[50] || []) {
-      state.groupQueues[50].add(userId);
-    }
-
-    // Restore active group sessions
-    state.activeGroupSessions[25] = this.data.activeGroupSessions[25] || null;
-    state.activeGroupSessions[50] = this.data.activeGroupSessions[50] || null;
-
-    const totalQueued = state.groupQueues[25].size + state.groupQueues[50].size;
-    console.log(`[SessionState] Restored state: ${state.activeSessions.size} sessions, ${totalQueued} queued users (${state.groupQueues[25].size} in 25min, ${state.groupQueues[50].size} in 50min)`);
+    console.log(`[SessionState] Restored state: ${state.activeSessions.size} sessions`);
     return true;
   }
 
@@ -199,15 +153,7 @@ export class SessionStateStore {
   async clearState() {
     this.data = {
       sessionCounter: 0,
-      activeSessions: [],
-      groupQueues: {
-        25: [],
-        50: []
-      },
-      activeGroupSessions: {
-        25: null,
-        50: null
-      }
+      activeSessions: []
     };
     await this.save();
   }

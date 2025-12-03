@@ -12,7 +12,7 @@ import { gradeJava, checkJavaAvailable } from "./grader/SimpleJavaRunner.js";
 import { CONFIG } from "./config.js";
 import { logger } from "./utils/logger.js";
 import { ScoreStore } from "./services/ScoreStore.js";
-import { setupStudySystem, handleSoloPomodoro, handleGroupQueue, handleShowStats, handleQueueLeave, handleRoleAdd, handleRoleRemove, handleStudyGroupJoin, recoverSessions, handleAFKCheck } from "./services/study.js";
+import { setupStudySystem, handleStudyStart, handleTopicSubmit, handleFindGroups, handleJoinDirect, handleShowStats, handleRoleAdd, handleRoleRemove, handleStudyGroupJoin, recoverSessions, handleAFKCheck } from "./services/study.js";
 import { studyStatsStore } from "./services/StudyStatsStore.js";
 import { handleQuizStart } from "./handlers/quizHandlers.js";
 import { handleLeaderboard, handleMyStats, handleStudyLeaderboard, handleHelpCommand } from "./handlers/leaderboardHandlers.js";
@@ -210,23 +210,24 @@ async function handleButton(interaction) {
   const customId = interaction.customId;
 
   // Study system buttons (no session ID needed)
-  if (customId === "study_solo_25") {
-    return await handleSoloPomodoro(interaction, interaction.client, 25);
+  if (customId === "study_start_pomodoro_25") {
+    return await handleStudyStart(interaction, "pomodoro", 25);
   }
-  if (customId === "study_solo_50") {
-    return await handleSoloPomodoro(interaction, interaction.client, 50);
+  if (customId === "study_start_pomodoro_50") {
+    return await handleStudyStart(interaction, "pomodoro", 50);
   }
-  if (customId === "study_queue_25") {
-    return await handleGroupQueue(interaction, interaction.client, 25);
+  if (customId === "study_start_openmic") {
+    return await handleStudyStart(interaction, "openmic", null);
   }
-  if (customId === "study_queue_50") {
-    return await handleGroupQueue(interaction, interaction.client, 50);
+  if (customId === "study_find_groups") {
+    return await handleFindGroups(interaction);
+  }
+  if (customId.startsWith("study_join_direct:")) {
+    const vcId = customId.split(":")[1];
+    return await handleJoinDirect(interaction, vcId);
   }
   if (customId === "study_stats") {
     return await handleShowStats(interaction);
-  }
-  if (customId === "study_queue_leave") {
-    return await handleQueueLeave(interaction);
   }
   if (customId === "study_role_add") {
     return await handleRoleAdd(interaction);
@@ -296,8 +297,17 @@ async function handleButton(interaction) {
 async function handleModalSubmit(interaction) {
   const parts = interaction.customId.split(":");
   const kind = parts[0];
-  const sid = parts[1];
 
+  // Study topic submission
+  if (kind === "study_topic") {
+    const mode = parts[1];
+    const duration = parts[2] === 'null' ? null : parseInt(parts[2]);
+    const topic = interaction.fields.getTextInputValue("topic");
+    
+    return await handleTopicSubmit(interaction, interaction.client, mode, duration, topic);
+  }
+
+  const sid = parts[1];
   const session = sessionManager.getSession(sid);
   if (!session) {
     await interaction.reply({

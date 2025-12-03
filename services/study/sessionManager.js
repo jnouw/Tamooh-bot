@@ -13,41 +13,23 @@ const { EmbedBuilder } = Discord;
 export const state = {
   sessionCounter: 0,
   activeSessions: new Map(), // voiceChannelId -> session
-  groupQueues: {
-    25: new Set(), // Set of user IDs waiting for 25min group session
-    50: new Set(), // Set of user IDs waiting for 50min group session
-  },
-  activeGroupSessions: {
-    25: null, // { voiceChannelId, textChannelId } or null
-    50: null, // { voiceChannelId, textChannelId } or null
-  },
-  queueTimeouts: {
-    25: null, // Timeout for auto-starting 25min queue
-    50: null, // Timeout for auto-starting 50min queue
-  },
-  queueGuilds: {
-    25: null, // Guild where 25min queue is active
-    50: null, // Guild where 50min queue is active
-  },
-  queueChannels: {
-    25: null, // Text channel where 25min queue was started
-    50: null, // Text channel where 50min queue was started
-  },
 };
 
 /**
  * Create a new study session
  */
-export function createSession(type, guildId, vcId, textId, creatorId, duration, username = null) {
+export function createSession(type, guildId, vcId, textId, creatorId, duration, username = null, topic = null, mode = "pomodoro") {
   const id = ++state.sessionCounter;
   const session = {
     id,
-    type, // "solo" or "group"
+    type, // "pomodoro" or "openmic" (formerly "solo"/"group")
+    mode, // "pomodoro" or "openmic"
+    topic,
     guildId,
     voiceChannelId: vcId,
     textChannelId: textId,
-    creatorId, // Only for solo sessions
-    duration, // Duration in minutes (25 or 50)
+    creatorId, // Only for solo sessions (or if we track creator for groups)
+    duration, // Duration in minutes (25 or 50) - null for openmic
     startedAt: Date.now(),
     timer: null,
     emptyTimeout: null,
@@ -56,6 +38,7 @@ export function createSession(type, guildId, vcId, textId, creatorId, duration, 
     pomodoroCount: 0, // Number of completed focus sessions
     username, // For solo sessions, store username for VC name updates
     mutedUsers: new Set(), // Track users who have been muted
+    participants: new Map(), // userId -> { joinedAt: number }
     activityCheckInterval: null, // Interval for checking user activities
   };
 
@@ -157,11 +140,21 @@ async function completeFocusSession(session, client) {
       for (const [userId, member] of participants) {
         const gamingMinutes = gamingTimes.get(userId) || 0;
 
+        // Calculate credit based on when they joined
+        const participantData = session.participants.get(userId);
+        const joinedAt = participantData ? participantData.joinedAt : session.startedAt;
+        const timeInSessionMs = Date.now() - joinedAt;
+        
+        // Credit is minimum of (session duration, time present)
+        // Convert to minutes, round to 1 decimal
+        const sessionDurationMs = session.duration * 60 * 1000;
+        const creditMinutes = Math.min(session.duration, Math.round(timeInSessionMs / 60000 * 10) / 10);
+
         // Record session with gaming data (initially invalid, will be validated after AFK check)
         const { milestone, sessionId } = await studyStatsStore.recordSession(
           userId,
           session.guildId,
-          session.duration,
+          creditMinutes, // Use calculated credit instead of full duration
           {
             valid: false, // Will be set to true only if AFK check passes AND no gaming
             gamingMinutes: gamingMinutes,
@@ -170,7 +163,7 @@ async function completeFocusSession(session, client) {
         );
 
         // Send AFK check DM
-        await afkChecker.sendAFKCheck(member.user, sessionId, session.guildId, session.duration);
+        await afkChecker.sendAFKCheck(member.user, sessionId, session.guildId, creditMinutes);
 
         // Note: Milestones will only be announced after AFK check passes
         // So we don't announce them here anymore
@@ -194,7 +187,7 @@ async function completeFocusSession(session, client) {
         .setColor(gamingViolations.length > 0 ? 0xFFA500 : 0x57F287) // Orange if gaming detected
         .addFields(
           { name: "Session ID", value: `#${session.id}`, inline: true },
-          { name: "Type", value: session.type === "solo" ? "Solo" : "Group", inline: true },
+          { name: "Mode", value: session.mode === "pomodoro" ? "Pomodoro" : "Open Mic", inline: true },
           { name: "Pomodoro", value: `#${session.pomodoroCount}`, inline: true },
           { name: "Participants", value: `${participantCount}`, inline: true },
           { name: "Duration", value: `${session.duration} minutes`, inline: true },
@@ -227,7 +220,7 @@ async function completeFocusSession(session, client) {
         .setColor(0x95A5A6)
         .addFields(
           { name: "Session ID", value: `#${session.id}`, inline: true },
-          { name: "Type", value: session.type === "solo" ? "Solo" : "Group", inline: true },
+          { name: "Mode", value: session.mode === "pomodoro" ? "Pomodoro" : "Open Mic", inline: true },
           { name: "Pomodoro", value: `#${session.pomodoroCount}`, inline: true },
           { name: "Participants", value: "0", inline: true },
           { name: "Status", value: "No participants remained", inline: false }
@@ -345,7 +338,7 @@ export async function cancelSession(session, client, reason) {
       .setColor(0xE74C3C)
       .addFields(
         { name: "Session ID", value: `#${session.id}`, inline: true },
-        { name: "Type", value: session.type === "solo" ? "Solo" : "Group", inline: true },
+        { name: "Mode", value: session.mode === "pomodoro" ? "Pomodoro" : "Open Mic", inline: true },
         { name: "Reason", value: reason, inline: false }
       )
       .setTimestamp();
@@ -365,13 +358,6 @@ export async function cancelSession(session, client, reason) {
     // Remove from active sessions
     state.activeSessions.delete(session.voiceChannelId);
 
-    // Clear active group session if this was a group session
-    if (session.type === "group" && session.duration) {
-      if (state.activeGroupSessions[session.duration]?.voiceChannelId === session.voiceChannelId) {
-        state.activeGroupSessions[session.duration] = null;
-      }
-    }
-
     // Persist state
     sessionStateStore.saveState(state).catch(err =>
       console.error('[Study] Failed to save state after canceling session:', err)
@@ -389,4 +375,41 @@ export async function cancelSession(session, client, reason) {
   } catch (error) {
     console.error("[Study] Error canceling session:", error);
   }
+}
+
+/**
+ * Get list of active sessions that are joinable
+ */
+export function getActiveSessions(guildId) {
+  const sessions = [];
+  for (const session of state.activeSessions.values()) {
+    if (session.guildId === guildId && !session.completed) {
+      sessions.push(session);
+    }
+  }
+  return sessions;
+}
+
+/**
+ * Find a matching session for the given topic and mode
+ */
+export function findMatchingSession(guildId, topic, mode, duration) {
+  const normalizedTopic = topic.toLowerCase().trim();
+  
+  for (const session of state.activeSessions.values()) {
+    if (session.guildId !== guildId || session.completed) continue;
+    
+    // Check mode match
+    if (session.mode !== mode) continue;
+    
+    // Check duration match (only for pomodoro)
+    if (mode === "pomodoro" && session.duration !== duration) continue;
+    
+    // Check topic match
+    if (session.topic && session.topic.toLowerCase().trim() === normalizedTopic) {
+      return session;
+    }
+  }
+  
+  return null;
 }
