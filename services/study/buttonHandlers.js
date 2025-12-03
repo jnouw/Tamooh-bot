@@ -229,8 +229,12 @@ export async function handleShowStats(interaction) {
   const userId = interaction.user.id;
   const guildId = interaction.guild.id;
 
+  // Get all stats
   const stats = studyStatsStore.getUserStats(userId, guildId);
   const winStats = studyStatsStore.getUserWinStats(userId, guildId);
+  const ranking = studyStatsStore.getUserRanking(userId, guildId);
+  const guildStats = studyStatsStore.getGuildStats(guildId);
+  const streak = studyStatsStore.getStudyStreak(userId, guildId);
   const tickets = studyStatsStore.calculateTickets(stats.lifetimeHours, stats.currentPeriodHours);
 
   const allSessions = studyStatsStore.data.sessions.filter(
@@ -244,55 +248,164 @@ export async function handleShowStats(interaction) {
   const avgSessionLength =
     stats.totalSessions > 0 ? (stats.lifetimeHours / stats.totalSessions).toFixed(1) : 0;
 
+  // Create progress bar
+  const createProgressBar = (current, max, length = 10) => {
+    const filledLength = Math.min(Math.round((current / max) * length), length);
+    const emptyLength = length - filledLength;
+    return "█".repeat(filledLength) + "░".repeat(emptyLength);
+  };
+
+  // Determine rank emoji and color
+  let rankEmoji = "📊";
+  let embedColor = 0x5865F2;
+  if (ranking.rank === 1) {
+    rankEmoji = "👑";
+    embedColor = 0xFFD700; // Gold
+  } else if (ranking.rank === 2) {
+    rankEmoji = "🥈";
+    embedColor = 0xC0C0C0; // Silver
+  } else if (ranking.rank === 3) {
+    rankEmoji = "🥉";
+    embedColor = 0xCD7F32; // Bronze
+  } else if (ranking.percentile >= 90) {
+    rankEmoji = "⭐";
+    embedColor = 0x9B59B6; // Purple
+  } else if (ranking.percentile >= 75) {
+    rankEmoji = "🔥";
+    embedColor = 0xE67E22; // Orange
+  }
+
+  // Calculate gap to leader
+  const gapToLeader = guildStats.topHours - stats.lifetimeHours;
+  const gapText = gapToLeader > 0
+    ? `${gapToLeader.toFixed(1)}h behind #1`
+    : "You're #1! 🎉";
+
+  // Calculate comparison to average
+  const vsAverage = stats.lifetimeHours - guildStats.averageHours;
+  const vsAverageText = vsAverage >= 0
+    ? `+${vsAverage.toFixed(1)}h above average`
+    : `${Math.abs(vsAverage).toFixed(1)}h below average`;
+
+  // Competitive description
+  let description = `${rankEmoji} **Rank #${ranking.rank}** out of ${ranking.totalUsers} (Top ${100 - ranking.percentile}%)\n`;
+  if (ranking.rank === 1) {
+    description += "🏆 **You're dominating the leaderboard!**";
+  } else if (ranking.percentile >= 90) {
+    description += "⚡ **You're in the elite top 10%!**";
+  } else if (ranking.percentile >= 75) {
+    description += "💪 **Strong performance! Keep climbing!**";
+  } else if (ranking.percentile >= 50) {
+    description += "📈 **You're above average! Push harder!**";
+  } else {
+    description += "🎯 **Time to grind and climb the ranks!**";
+  }
+
+  // Determine next milestone
+  const hourMilestones = [3, 10, 24, 48, 72, 96, 120, 168, 240, 336, 500, 1000];
+  const nextMilestone = hourMilestones.find(m => m > stats.lifetimeHours) || (Math.ceil(stats.lifetimeHours / 100) * 100 + 100);
+  const hoursToNext = nextMilestone - stats.lifetimeHours;
+  const milestoneProgress = stats.lifetimeHours / nextMilestone;
+  const milestoneBar = createProgressBar(stats.lifetimeHours, nextMilestone, 12);
+
+  // Build embed
   const embed = new EmbedBuilder()
-    .setTitle("📊 Your Comprehensive Study Stats")
-    .setColor(0x5865F2)
-    .setDescription("Here's your complete study journey breakdown!")
+    .setTitle("💎 Your Competitive Study Profile")
+    .setColor(embedColor)
+    .setDescription(description)
     .addFields(
-      { name: "📚 Study Summary", value: "━━━━━━━━━━━━━━━", inline: false },
-      { name: "Valid Sessions", value: `${stats.totalSessions}`, inline: true },
-      { name: "Lifetime Hours", value: `${stats.lifetimeHours}h`, inline: true },
-      { name: "Avg Session", value: `${avgSessionLength}h`, inline: true },
+      // Competitive Overview
+      { name: "🏅 Server Standing", value: "━━━━━━━━━━━━━━━", inline: false },
+      { name: "Your Rank", value: `#${ranking.rank} / ${ranking.totalUsers}`, inline: true },
+      { name: "Percentile", value: `Top ${100 - ranking.percentile}%`, inline: true },
+      { name: "Gap to Leader", value: gapText, inline: true },
 
-      { name: "📅 Current Period", value: "━━━━━━━━━━━━━━━", inline: false },
-      { name: "Period Hours", value: `${stats.currentPeriodHours}h`, inline: true },
-      {
-        name: "Period Sessions",
-        value: `${allSessions.filter(
-          (s) => s.valid && s.timestamp >= (studyStatsStore.data.giveawayPeriods[guildId] || 0)
-        ).length}`,
-        inline: true
-      },
-      { name: "Next Giveaway Tickets", value: `🎫 ${tickets}`, inline: true },
+      // Core Stats
+      { name: "📚 Study Performance", value: "━━━━━━━━━━━━━━━", inline: false },
+      { name: "Lifetime Hours", value: `**${stats.lifetimeHours}h**`, inline: true },
+      { name: "vs Server Avg", value: vsAverageText, inline: true },
+      { name: "Total Sessions", value: `${stats.totalSessions}`, inline: true },
 
-      { name: "✅ Session Quality", value: "━━━━━━━━━━━━━━━", inline: false },
-      { name: "Total Attempts", value: `${totalAttempts}`, inline: true },
-      { name: "Failed Sessions", value: `${invalidSessions}`, inline: true },
+      // Current Period (Competition)
+      { name: "⚔️ Current Competition", value: "━━━━━━━━━━━━━━━", inline: false },
+      { name: "Period Hours", value: `**${stats.currentPeriodHours}h**`, inline: true },
+      { name: "Your Tickets", value: `🎫 **${tickets}**`, inline: true },
       { name: "Success Rate", value: `${validationRate}`, inline: true },
 
-      { name: "🏆 Giveaway Stats", value: "━━━━━━━━━━━━━━━", inline: false },
-      { name: "Total Wins", value: `${winStats.totalWins}`, inline: true },
-      { name: "Win Rate", value: `${winStats.winRate}%`, inline: true },
-      { name: "Status", value: winStats.totalWins > 0 ? "🌟 Winner!" : "🎯 Keep studying!", inline: true }
-    )
-    .setFooter({ text: getMotivationalMessage(stats.totalSessions) })
-    .setTimestamp();
+      // Progress & Goals
+      { name: "🎯 Next Milestone", value: "━━━━━━━━━━━━━━━", inline: false },
+      {
+        name: `Goal: ${nextMilestone}h`,
+        value: `${milestoneBar} ${hoursToNext.toFixed(1)}h to go!`,
+        inline: false
+      }
+    );
 
-  if (winStats.recentWins.length > 0) {
-    const recentWinsList = winStats.recentWins
-      .slice(0, 3)
-      .map((w) => {
-        const date = new Date(w.timestamp);
-        return `• ${w.prizeName} (${date.toLocaleDateString()})`;
-      })
-      .join("\n");
+  // Add streak section if user has any sessions
+  if (stats.totalSessions > 0) {
+    const streakEmoji = streak.currentStreak >= 7 ? "🔥" : streak.currentStreak >= 3 ? "⚡" : "📅";
+    let streakText = `Current: **${streak.currentStreak} days** ${streakEmoji}\n`;
+    streakText += `Best: **${streak.longestStreak} days**`;
+    if (streak.currentStreak === 0 && streak.longestStreak > 0) {
+      streakText += "\n💔 Streak lost! Start a new one today!";
+    }
 
-    embed.addFields({
-      name: "🎁 Recent Wins",
-      value: recentWinsList,
-      inline: false
-    });
+    embed.addFields(
+      { name: "🔥 Study Streak", value: "━━━━━━━━━━━━━━━", inline: false },
+      { name: "Streak Stats", value: streakText, inline: true },
+      { name: "Avg Session", value: `${avgSessionLength}h`, inline: true },
+      { name: "Last Study", value: streak.lastStudyDate || "N/A", inline: true }
+    );
   }
+
+  // Giveaway Stats (only if there have been giveaways)
+  if (winStats.totalGiveaways > 0) {
+    const winRateDisplay = winStats.winRate > 0 ? `${winStats.winRate}%` : "0%";
+    const giveawayStatus = winStats.totalWins > 0
+      ? "🌟 Winner!"
+      : "🎯 Keep grinding for your first win!";
+
+    embed.addFields(
+      { name: "🏆 Giveaway Performance", value: "━━━━━━━━━━━━━━━", inline: false },
+      { name: "Total Wins", value: `**${winStats.totalWins}**`, inline: true },
+      { name: "Win Rate", value: `**${winRateDisplay}**`, inline: true },
+      { name: "Status", value: giveawayStatus, inline: true }
+    );
+
+    if (winStats.recentWins.length > 0) {
+      const recentWinsList = winStats.recentWins
+        .slice(0, 3)
+        .map((w) => {
+          const date = new Date(w.timestamp);
+          return `• ${w.prizeName} (${date.toLocaleDateString()})`;
+        })
+        .join("\n");
+
+      embed.addFields({
+        name: "🎁 Recent Wins",
+        value: recentWinsList,
+        inline: false
+      });
+    }
+  }
+
+  // Competitive footer message
+  let footerText = "";
+  if (ranking.rank === 1) {
+    footerText = "👑 Defend your throne! Stay consistent!";
+  } else if (ranking.rank <= 3) {
+    footerText = "🔥 So close to the top! Keep pushing!";
+  } else if (ranking.percentile >= 75) {
+    footerText = "⚡ You're in the top tier! Don't stop now!";
+  } else if (hoursToNext <= 5) {
+    footerText = `🎯 Just ${hoursToNext.toFixed(1)}h until your next milestone!`;
+  } else if (streak.currentStreak >= 3) {
+    footerText = `🔥 ${streak.currentStreak}-day streak! Don't break it!`;
+  } else {
+    footerText = "💪 Every hour counts. Start studying now!";
+  }
+
+  embed.setFooter({ text: footerText }).setTimestamp();
 
   await interaction.editReply({ embeds: [embed] });
 }
