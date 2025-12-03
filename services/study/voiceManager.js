@@ -13,14 +13,21 @@ export async function setVoiceChannelStatus(client, session, isSolo = true) {
     const vc = guild.channels.cache.get(session.voiceChannelId);
     if (!vc) return;
 
+    // Check if the method exists (Discord.js v14+ feature)
+    if (typeof vc.setStatus !== 'function') {
+      console.log(`[Study] Voice channel status not supported in this Discord.js version`);
+      return;
+    }
+
     const statusMessage = isSolo
       ? "Solo studying"
       : "Group studying - join me!";
 
-    await vc.setVoiceStatus(statusMessage);
+    await vc.setStatus(statusMessage);
     console.log(`[Study] Set VC status to: ${statusMessage}`);
   } catch (error) {
-    console.error(`[Study] Failed to set VC status:`, error.message);
+    // Don't crash if status setting fails - it's not critical
+    console.error(`[Study] Failed to set VC status (non-critical):`, error.message);
   }
 }
 
