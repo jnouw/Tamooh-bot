@@ -80,13 +80,21 @@ export async function handleResetPeriodCommand(message) {
       "React with ✅ to confirm, or ❌ to cancel. (30 seconds)"
   );
 
-  await confirmMsg.react("✅");
-  await confirmMsg.react("❌");
+  try {
+    await confirmMsg.react("✅");
+    await confirmMsg.react("❌");
+  } catch (error) {
+    console.error("[AdminCmd] Failed to add reactions:", error);
+    await message.reply("❌ Failed to add reactions. Check bot permissions (Add Reactions).");
+    return;
+  }
 
   try {
-    const filter = (reaction, user) =>
-      (reaction.emoji.name === "✅" || reaction.emoji.name === "❌") &&
-      user.id === message.author.id;
+    const filter = (reaction, user) => {
+      console.log(`[AdminCmd] Reaction: ${reaction.emoji.name}, User: ${user.id}, Author: ${message.author.id}`);
+      return (reaction.emoji.name === "✅" || reaction.emoji.name === "❌") &&
+        user.id === message.author.id;
+    };
 
     const collected = await confirmMsg.awaitReactions({
       filter,
@@ -96,32 +104,50 @@ export async function handleResetPeriodCommand(message) {
     });
 
     const reaction = collected.first();
+    console.log(`[AdminCmd] Collected reaction: ${reaction?.emoji.name}`);
 
     if (reaction.emoji.name === "✅") {
-      const result = await studyStatsStore.resetGiveawayPeriod(message.guildId);
+      console.log("[AdminCmd] Confirmed - executing reset...");
 
-      const embed = new EmbedBuilder()
-        .setTitle("✅ Giveaway Period Reset Complete")
-        .setDescription(
-          `**Current period has been reset!**\n\n` +
-            `📊 Users affected: ${result.usersAffected}\n` +
-            `📅 New period started: ${new Date(result.periodStartDate).toLocaleString()}\n\n` +
-            `**What changed:**\n` +
-            `• ✅ Lifetime hours preserved forever\n` +
-            `• 🔄 Current period hours reset to 0\n` +
-            `• 🎫 Tickets will recalculate: 10 + √lifetime×5 + current×2\n\n` +
-            `Newcomers and active studiers now compete fairly!`
-        )
-        .setColor(0x57f287);
+      try {
+        const result = await studyStatsStore.resetGiveawayPeriod(message.guildId);
+        console.log(`[AdminCmd] Reset complete: ${result.usersAffected} users affected`);
 
-      await message.reply({ embeds: [embed] });
-      await confirmMsg.delete().catch(() => {});
+        const embed = new EmbedBuilder()
+          .setTitle("✅ Giveaway Period Reset Complete")
+          .setDescription(
+            `**Current period has been reset!**\n\n` +
+              `📊 Users affected: ${result.usersAffected}\n` +
+              `📅 New period started: ${new Date(result.periodStartDate).toLocaleString()}\n\n` +
+              `**What changed:**\n` +
+              `• ✅ Lifetime hours preserved forever\n` +
+              `• 🔄 Current period hours reset to 0\n` +
+              `• 🎫 Tickets will recalculate: 30 + √lifetime×5 + current×3\n\n` +
+              `Newcomers and active studiers now compete fairly!`
+          )
+          .setColor(0x57f287)
+          .setTimestamp();
+
+        await message.reply({ embeds: [embed] });
+        await confirmMsg.delete().catch(() => {});
+      } catch (resetError) {
+        console.error("[AdminCmd] Reset failed:", resetError);
+        await message.reply(`❌ Failed to reset period: ${resetError.message}`);
+        await confirmMsg.delete().catch(() => {});
+      }
     } else {
+      console.log("[AdminCmd] User cancelled reset");
       await message.reply("❌ Period reset cancelled.");
       await confirmMsg.delete().catch(() => {});
     }
   } catch (error) {
-    await message.reply("❌ Period reset cancelled (timed out).");
+    if (error.message?.includes('time')) {
+      console.log("[AdminCmd] Reset timed out");
+      await message.reply("❌ Period reset cancelled (timed out).");
+    } else {
+      console.error("[AdminCmd] Unexpected error:", error);
+      await message.reply(`❌ An error occurred: ${error.message}`);
+    }
     await confirmMsg.delete().catch(() => {});
   }
 }
