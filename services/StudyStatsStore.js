@@ -265,7 +265,7 @@ export class StudyStatsStore {
         userMap.set(s.userId, current);
       });
 
-    // Convert to array and sort by CURRENT PERIOD (most relevant)
+    // Convert to array and sort by CURRENT PERIOD first, then LIFETIME as tiebreaker
     const leaderboard = Array.from(userMap.entries())
       .map(([userId, stats]) => ({
         userId,
@@ -274,7 +274,14 @@ export class StudyStatsStore {
         currentPeriodHours: Math.round(stats.currentPeriodMinutes / 60 * 10) / 10,
         totalSessions: stats.totalSessions
       }))
-      .sort((a, b) => b.currentPeriodHours - a.currentPeriodHours) // Sort by current period
+      .sort((a, b) => {
+        // Primary sort: current period hours (descending)
+        if (b.currentPeriodHours !== a.currentPeriodHours) {
+          return b.currentPeriodHours - a.currentPeriodHours;
+        }
+        // Secondary sort: lifetime hours (descending)
+        return b.lifetimeHours - a.lifetimeHours;
+      })
       .slice(0, limit);
 
     return leaderboard;
