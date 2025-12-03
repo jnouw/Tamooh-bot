@@ -406,26 +406,145 @@ export class StudyStatsStore {
    * Get user's giveaway win statistics
    * @param {string} userId - Discord user ID
    * @param {string} guildId - Discord guild ID
-   * @returns {{ totalWins: number, recentWins: Array, winRate: number }}
+   * @returns {{ totalWins: number, recentWins: Array, winRate: number, totalGiveaways: number }}
    */
   getUserWinStats(userId, guildId) {
     const userWins = this.data.giveawayWins.filter(
       w => w.userId === userId && w.guildId === guildId
     );
 
-    // Get total number of giveaways in this guild
+    // Get total number of unique giveaways in this guild
     const totalGiveaways = new Set(
       this.data.giveawayWins
         .filter(w => w.guildId === guildId)
         .map(w => w.timestamp)
     ).size;
 
+    // Calculate win rate: if user has tickets (lifetime hours > 0), they participate
+    // Win rate = (wins / total giveaways) × 100
+    // Show 0 if no giveaways yet, otherwise show real percentage
     const winRate = totalGiveaways > 0 ? (userWins.length / totalGiveaways) * 100 : 0;
 
     return {
       totalWins: userWins.length,
       recentWins: userWins.slice(-5).reverse(), // Last 5 wins, most recent first
-      winRate: Math.round(winRate * 100) / 100 // Two decimal places
+      winRate: Math.round(winRate * 100) / 100, // Two decimal places
+      totalGiveaways
+    };
+  }
+
+  /**
+   * Get user's ranking in the guild
+   * @param {string} userId - Discord user ID
+   * @param {string} guildId - Discord guild ID
+   * @returns {{ rank: number, totalUsers: number, percentile: number }}
+   */
+  getUserRanking(userId, guildId) {
+    const leaderboard = this.getLeaderboard(guildId, 9999); // Get all users
+    const userIndex = leaderboard.findIndex(u => u.userId === userId);
+
+    // If user not on leaderboard, they're last (unranked)
+    const isUnranked = userIndex === -1;
+    const rank = isUnranked ? leaderboard.length + 1 : userIndex + 1;
+    const totalUsers = isUnranked ? leaderboard.length + 1 : leaderboard.length || 1;
+    const percentile = Math.round(((totalUsers - rank + 1) / totalUsers) * 100);
+
+    return {
+      rank,
+      totalUsers,
+      percentile
+    };
+  }
+
+  /**
+   * Get guild-wide statistics
+   * @param {string} guildId - Discord guild ID
+   * @returns {{ averageHours: number, averagePeriodHours: number, totalUsers: number, topHours: number }}
+   */
+  getGuildStats(guildId) {
+    const leaderboard = this.getLeaderboard(guildId, 9999); // Get all users
+
+    if (leaderboard.length === 0) {
+      return { averageHours: 0, averagePeriodHours: 0, totalUsers: 0, topHours: 0 };
+    }
+
+    const totalLifetimeHours = leaderboard.reduce((sum, u) => sum + u.lifetimeHours, 0);
+    const totalPeriodHours = leaderboard.reduce((sum, u) => sum + u.currentPeriodHours, 0);
+    const averageHours = Math.round((totalLifetimeHours / leaderboard.length) * 10) / 10;
+    const averagePeriodHours = Math.round((totalPeriodHours / leaderboard.length) * 10) / 10;
+    const topHours = leaderboard[0]?.lifetimeHours || 0;
+
+    return {
+      averageHours,
+      averagePeriodHours,
+      totalUsers: leaderboard.length,
+      topHours
+    };
+  }
+
+  /**
+   * Get study streak (consecutive days with valid sessions)
+   * @param {string} userId - Discord user ID
+   * @param {string} guildId - Discord guild ID
+   * @returns {{ currentStreak: number, longestStreak: number, lastStudyDate: string | null }}
+   */
+  getStudyStreak(userId, guildId) {
+    const userSessions = this.data.sessions
+      .filter(s => s.userId === userId && s.guildId === guildId && s.valid === true)
+      .sort((a, b) => a.timestamp - b.timestamp);
+
+    if (userSessions.length === 0) {
+      return { currentStreak: 0, longestStreak: 0, lastStudyDate: null };
+    }
+
+    // Get unique days with sessions
+    const sessionDays = userSessions.map(s => {
+      const date = new Date(s.timestamp);
+      return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    });
+    const uniqueDays = [...new Set(sessionDays)].sort((a, b) => a - b);
+
+    if (uniqueDays.length === 0) {
+      return { currentStreak: 0, longestStreak: 0, lastStudyDate: null };
+    }
+
+    // Calculate current streak (working backwards from today)
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    const oneDayMs = 24 * 60 * 60 * 1000;
+
+    let currentStreak = 0;
+    let checkDate = todayStart;
+
+    for (let i = uniqueDays.length - 1; i >= 0; i--) {
+      if (uniqueDays[i] === checkDate) {
+        currentStreak++;
+        checkDate -= oneDayMs;
+      } else if (uniqueDays[i] < checkDate - oneDayMs) {
+        // Gap found, stop counting current streak
+        break;
+      }
+    }
+
+    // Calculate longest streak
+    let longestStreak = 1;
+    let tempStreak = 1;
+
+    for (let i = 1; i < uniqueDays.length; i++) {
+      if (uniqueDays[i] - uniqueDays[i - 1] === oneDayMs) {
+        tempStreak++;
+        longestStreak = Math.max(longestStreak, tempStreak);
+      } else {
+        tempStreak = 1;
+      }
+    }
+
+    const lastStudyDate = new Date(uniqueDays[uniqueDays.length - 1]).toLocaleDateString();
+
+    return {
+      currentStreak,
+      longestStreak,
+      lastStudyDate
     };
   }
 }
