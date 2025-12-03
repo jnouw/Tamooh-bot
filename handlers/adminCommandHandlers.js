@@ -128,25 +128,41 @@ export async function handleResetPeriodCommand(message) {
           .setColor(0x57f287)
           .setTimestamp();
 
-        await message.reply({ embeds: [embed] });
+        await message.reply({ embeds: [embed] }).catch(async (err) => {
+          console.error("[AdminCmd] Failed to reply:", err.message);
+          // Try to send in the channel instead if reply fails
+          await message.channel.send({ embeds: [embed] }).catch(() => {});
+        });
         await confirmMsg.delete().catch(() => {});
       } catch (resetError) {
         console.error("[AdminCmd] Reset failed:", resetError);
-        await message.reply(`❌ Failed to reset period: ${resetError.message}`);
+        await message.reply(`❌ Failed to reset period: ${resetError.message}`).catch(async (err) => {
+          console.error("[AdminCmd] Failed to reply with error:", err.message);
+          await message.channel.send(`❌ Failed to reset period: ${resetError.message}`).catch(() => {});
+        });
         await confirmMsg.delete().catch(() => {});
       }
     } else {
       console.log("[AdminCmd] User cancelled reset");
-      await message.reply("❌ Period reset cancelled.");
+      await message.reply("❌ Period reset cancelled.").catch(async (err) => {
+        console.error("[AdminCmd] Failed to reply:", err.message);
+        await message.channel.send("❌ Period reset cancelled.").catch(() => {});
+      });
       await confirmMsg.delete().catch(() => {});
     }
   } catch (error) {
     if (error.message?.includes('time')) {
       console.log("[AdminCmd] Reset timed out");
-      await message.reply("❌ Period reset cancelled (timed out).");
+      await message.reply("❌ Period reset cancelled (timed out).").catch(async (err) => {
+        console.error("[AdminCmd] Failed to reply:", err.message);
+        await message.channel.send("❌ Period reset cancelled (timed out).").catch(() => {});
+      });
     } else {
       console.error("[AdminCmd] Unexpected error:", error);
-      await message.reply(`❌ An error occurred: ${error.message}`);
+      await message.reply(`❌ An error occurred: ${error.message}`).catch(async (err) => {
+        console.error("[AdminCmd] Failed to reply:", err.message);
+        await message.channel.send(`❌ An error occurred: ${error.message}`).catch(() => {});
+      });
     }
     await confirmMsg.delete().catch(() => {});
   }
