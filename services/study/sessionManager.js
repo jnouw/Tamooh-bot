@@ -101,6 +101,125 @@ export async function startPomodoroTimer(session, client) {
 }
 
 /**
+ * Start suggestive timer for open mic sessions (50+10, non-enforced)
+ */
+export async function startSuggestiveTimer(session, client) {
+  session.phase = "focus";
+  session.startedAt = Date.now();
+  session.duration = 50; // Set duration for tracking purposes
+
+  console.log(`[Study] Starting suggestive 50+10 timer for open mic session ${session.id}`);
+
+  // Send initial message
+  try {
+    const guild = client.guilds.cache.get(session.guildId);
+    const textChannel = guild?.channels.cache.get(session.textChannelId);
+
+    if (textChannel) {
+      const embed = new EmbedBuilder()
+        .setTitle("🎙️ Open Mic Session Started")
+        .setColor(0x5865F2)
+        .setDescription(
+          "**Suggested Schedule:**\n" +
+          "• 50 minutes of focused study\n" +
+          "• 10 minute break\n\n" +
+          "*This is just a suggestion - study at your own pace!*"
+        )
+        .setTimestamp();
+
+      await textChannel.send({ embeds: [embed] });
+    }
+  } catch (error) {
+    console.error(`[Study] Failed to send initial message for open mic session ${session.id}:`, error);
+  }
+
+  // Timer for 50-minute focus suggestion
+  const focusMs = 50 * 60 * 1000;
+  session.timer = setTimeout(async () => {
+    if (session.completed) return;
+    await completeSuggestiveFocus(session, client);
+  }, focusMs);
+}
+
+/**
+ * Complete suggestive focus phase and suggest break
+ */
+async function completeSuggestiveFocus(session, client) {
+  console.log(`[Study] Suggestive focus phase complete for open mic session ${session.id}`);
+
+  try {
+    const guild = client.guilds.cache.get(session.guildId);
+    const textChannel = guild?.channels.cache.get(session.textChannelId);
+
+    if (textChannel) {
+      const embed = new EmbedBuilder()
+        .setTitle("⏰ Focus Time Complete!")
+        .setColor(0xF1C40F)
+        .setDescription(
+          "**50 minutes of study complete!** 🎉\n\n" +
+          "Consider taking a 10-minute break to refresh.\n" +
+          "*This is just a suggestion - continue studying if you're in the zone!*"
+        )
+        .setTimestamp();
+
+      await textChannel.send({ embeds: [embed] });
+    }
+
+    // Start suggestive break timer
+    session.phase = "break";
+    session.startedAt = Date.now();
+
+    const breakMs = 10 * 60 * 1000;
+    session.timer = setTimeout(async () => {
+      if (session.completed) return;
+      await completeSuggestiveBreak(session, client);
+    }, breakMs);
+
+    // Persist state
+    sessionStateStore.saveState(state).catch(err =>
+      console.error('[Study] Failed to save state after suggestive focus:', err)
+    );
+
+  } catch (error) {
+    console.error("[Study] Error completing suggestive focus:", error);
+  }
+}
+
+/**
+ * Complete suggestive break and suggest next focus
+ */
+async function completeSuggestiveBreak(session, client) {
+  console.log(`[Study] Suggestive break complete for open mic session ${session.id}`);
+
+  try {
+    const guild = client.guilds.cache.get(session.guildId);
+    const textChannel = guild?.channels.cache.get(session.textChannelId);
+
+    session.pomodoroCount++;
+
+    if (textChannel) {
+      const embed = new EmbedBuilder()
+        .setTitle("🔔 Break Time Over!")
+        .setColor(0x5865F2)
+        .setDescription(
+          "**10-minute break complete!**\n\n" +
+          `Ready for another focus session? (Session #${session.pomodoroCount + 1})\n` +
+          "*This is just a suggestion - take your time!*"
+        )
+        .setTimestamp();
+
+      await textChannel.send({ embeds: [embed] });
+    }
+
+    // Start next suggestive focus cycle
+    await startSuggestiveTimer(session, client);
+
+  } catch (error) {
+    console.error("[Study] Error completing suggestive break:", error);
+  }
+}
+
+/**
  * Complete a focus session and start break
  */
 export async function completeFocusSessionPublic(session, client) {

@@ -7,7 +7,7 @@ import Discord, {
   ButtonStyle
 } from "discord.js";
 import { studyStatsStore } from "../StudyStatsStore.js";
-import { createSession, startPomodoroTimer, findMatchingSession, getActiveSessions } from "./sessionManager.js";
+import { createSession, startPomodoroTimer, startSuggestiveTimer, findMatchingSession, getActiveSessions } from "./sessionManager.js";
 import { logToChannel, autoAssignStudyRole, getMotivationalMessage } from "./utils.js";
 import {
   VOICE_CATEGORY_ID,
@@ -114,6 +114,8 @@ export async function handleTopicSubmit(interaction, client, mode, duration, top
 
     if (mode === "pomodoro") {
       await startPomodoroTimer(session, client);
+    } else if (mode === "openmic") {
+      await startSuggestiveTimer(session, client);
     }
 
     const startEmbed = new EmbedBuilder()
