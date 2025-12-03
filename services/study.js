@@ -23,6 +23,63 @@ export {
 export { handleAFKCheck } from "./study/afkChecker.js";
 
 /**
+ * Clean up orphaned study/break channels that aren't tracked in active sessions
+ * This happens when the bot crashes and session state is lost
+ */
+async function cleanupOrphanedChannels(client) {
+  console.log("[Study] Scanning for orphaned study channels...");
+
+  let deletedCount = 0;
+
+  try {
+    for (const guild of client.guilds.cache.values()) {
+      const voiceChannels = guild.channels.cache.filter(ch => ch.type === 2); // Type 2 = Voice Channel
+
+      for (const [channelId, channel] of voiceChannels) {
+        const channelName = channel.name;
+
+        // Check if channel name matches study/break patterns
+        const isStudyChannel =
+          channelName.includes("Study –") ||
+          channelName.includes("Study Group –") ||
+          channelName.includes("Break –") ||
+          channelName.includes("Group Break –");
+
+        if (isStudyChannel) {
+          // Check if this channel is in active sessions
+          const isTracked = state.activeSessions.has(channelId);
+
+          if (!isTracked) {
+            // This is an orphaned channel - delete it
+            const memberCount = channel.members.filter(m => !m.user.bot).size;
+
+            if (memberCount === 0) {
+              console.log(`[Study] Deleting orphaned channel: ${channelName} (ID: ${channelId})`);
+              try {
+                await channel.delete("Orphaned study channel cleanup");
+                deletedCount++;
+              } catch (error) {
+                console.error(`[Study] Failed to delete orphaned channel ${channelId}:`, error.message);
+              }
+            } else {
+              console.log(`[Study] Found orphaned channel with ${memberCount} members: ${channelName} - NOT deleting`);
+            }
+          }
+        }
+      }
+    }
+
+    if (deletedCount > 0) {
+      console.log(`[Study] Cleanup complete: ${deletedCount} orphaned channel(s) deleted`);
+    } else {
+      console.log("[Study] No orphaned channels found");
+    }
+  } catch (error) {
+    console.error("[Study] Error during orphaned channel cleanup:", error);
+  }
+}
+
+/**
  * Setup the study system
  */
 export function setupStudySystem(client) {
@@ -159,6 +216,22 @@ export function setupStudySystem(client) {
     } catch (error) {
       console.error("[Giveaway] Error running giveaway:", error);
       message.reply("❌ Error running giveaway. Check console for details.").catch(() => { });
+    }
+  });
+
+  // Owner command to cleanup orphaned study channels
+  client.on(Events.MessageCreate, async (message) => {
+    if (message.author.bot) return;
+    if (message.author.id !== OWNER_ID) return;
+    if (message.content.trim() !== "!cleanup") return;
+
+    try {
+      await message.reply("🧹 Scanning for orphaned study channels...");
+      await cleanupOrphanedChannels(client);
+      await message.reply("✅ Cleanup complete! Check console for details.");
+    } catch (error) {
+      console.error("[Study] Error running cleanup:", error);
+      message.reply("❌ Error running cleanup. Check console for details.").catch(() => { });
     }
   });
 
@@ -385,4 +458,7 @@ export async function recoverSessions(client) {
   console.log(`[Study] Recovery complete: ${recoveredCount} sessions recovered, ${cleanedCount} cleaned up`);
 
   await sessionStateStore.saveState(state);
+
+  // Clean up orphaned study channels that aren't in active sessions
+  await cleanupOrphanedChannels(client);
 }
