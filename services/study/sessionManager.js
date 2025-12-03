@@ -139,6 +139,11 @@ export async function startSuggestiveTimer(session, client) {
     if (session.completed) return;
     await completeSuggestiveFocus(session, client);
   }, focusMs);
+
+  // Persist state
+  sessionStateStore.saveState(state).catch(err =>
+    console.error('[Study] Failed to save state after starting suggestive timer:', err)
+  );
 }
 
 /**
