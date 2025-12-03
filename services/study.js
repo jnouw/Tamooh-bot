@@ -348,7 +348,10 @@ export async function recoverSessions(client) {
 
         const sessionManager = await import("./study/sessionManager.js");
 
-        if (sessionPhase === "focus") {
+        if (session.mode === "openmic") {
+          // For open mic with expired timer, just restart the suggestive cycle
+          await sessionManager.startSuggestiveTimer(session, client);
+        } else if (sessionPhase === "focus") {
           await sessionManager.completeFocusSessionPublic(session, client);
         } else {
           await sessionManager.completeBreakSessionPublic(session, client);
@@ -361,7 +364,11 @@ export async function recoverSessions(client) {
       console.log(`[Study] Session ${session.id}: Recovering ${sessionPhase} phase with ${Math.round(remaining / 1000)}s remaining`);
 
       const sessionManager = await import("./study/sessionManager.js");
-      if (sessionPhase === "focus") {
+
+      if (session.mode === "openmic") {
+        // For open mic, restart the suggestive timer
+        await sessionManager.startSuggestiveTimer(session, client);
+      } else if (sessionPhase === "focus") {
         await sessionManager.startPomodoroTimer(session, client);
       } else {
         await sessionManager.startBreakTimer(session, client);
