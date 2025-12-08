@@ -10,4 +10,4 @@ export const OWNER_ID = "274462470674972682";
 export const EMPTY_TIMEOUT_MS = 30 * 1000; // 20 seconds after completion
 export const DELETE_DELAY_MS = 20 * 1000; // 20 seconds after completion
 export const GROUP_QUEUE_THRESHOLD = 3; // Number of users needed to start group session
-export const QUEUE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes - auto-start queue if not full
+export const QUEUE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes - auto-start queue if not full
