@@ -244,6 +244,12 @@ export async function handleShowStats(interaction) {
   const allMembers = interaction.guild.members.cache;
   let totalTickets = 0;
 
+  // Check if current user is eligible for giveaways
+  const currentMember = interaction.member;
+  const userHasStudyRole = currentMember.roles.cache.has(STUDY_ROLE_ID);
+  const userHasTamoohRole = currentMember.roles.cache.has(TAMOOH_ROLE_ID);
+  const isEligible = userHasStudyRole && userHasTamoohRole;
+
   for (const [memberId, member] of allMembers) {
     // Skip bots
     if (member.user.bot) continue;
@@ -263,10 +269,10 @@ export async function handleShowStats(interaction) {
     totalTickets += memberTickets;
   }
 
-  // Calculate accurate win chance
-  const winChance = totalTickets > 0 ? (tickets / totalTickets) * 100 : 0;
+  // Calculate accurate win chance (0% if user doesn't have required roles)
+  const winChance = isEligible && totalTickets > 0 ? (tickets / totalTickets) * 100 : 0;
   const winningChances = {
-    userTickets: tickets,
+    userTickets: isEligible ? tickets : 0,
     totalTickets: totalTickets,
     winChance: Math.round(winChance * 100) / 100 // Two decimal places
   };
