@@ -13,6 +13,7 @@ import {
   VOICE_CATEGORY_ID,
   DELETE_DELAY_MS,
   STUDY_ROLE_ID,
+  TAMOOH_ROLE_ID,
   STUDY_CHANNEL_ID
 } from "./config.js";
 
@@ -235,8 +236,46 @@ export async function handleShowStats(interaction) {
   const ranking = studyStatsStore.getUserRanking(userId, guildId);
   const guildStats = studyStatsStore.getGuildStats(guildId);
   const streak = studyStatsStore.getStudyStreak(userId, guildId);
-  const winningChances = studyStatsStore.getWinningChances(userId, guildId);
   const tickets = studyStatsStore.calculateTickets(stats.lifetimeHours, stats.currentPeriodHours);
+
+  // Calculate ACTUAL total tickets (matching giveaway logic)
+  // This counts ALL eligible users with required roles, not just those with sessions
+  await interaction.guild.members.fetch();
+  const allMembers = interaction.guild.members.cache;
+  let totalTickets = 0;
+
+  // Check if current user is eligible for giveaways
+  const currentMember = interaction.member;
+  const userHasStudyRole = currentMember.roles.cache.has(STUDY_ROLE_ID);
+  const userHasTamoohRole = currentMember.roles.cache.has(TAMOOH_ROLE_ID);
+  const isEligible = userHasStudyRole && userHasTamoohRole;
+
+  for (const [memberId, member] of allMembers) {
+    // Skip bots
+    if (member.user.bot) continue;
+
+    // Check if user has BOTH required roles (same as giveaway logic)
+    const hasStudyRole = member.roles.cache.has(STUDY_ROLE_ID);
+    const hasTamoohRole = member.roles.cache.has(TAMOOH_ROLE_ID);
+
+    if (!hasStudyRole || !hasTamoohRole) continue;
+
+    // Get user's session stats
+    const memberStats = studyStatsStore.getUserStats(memberId, guildId);
+
+    // Calculate tickets using formula (baseline 30 + bonuses)
+    const memberTickets = studyStatsStore.calculateTickets(memberStats.lifetimeHours, memberStats.currentPeriodHours);
+
+    totalTickets += memberTickets;
+  }
+
+  // Calculate accurate win chance (0% if user doesn't have required roles)
+  const winChance = isEligible && totalTickets > 0 ? (tickets / totalTickets) * 100 : 0;
+  const winningChances = {
+    userTickets: isEligible ? tickets : 0,
+    totalTickets: totalTickets,
+    winChance: Math.round(winChance * 100) / 100 // Two decimal places
+  };
 
   const allSessions = studyStatsStore.data.sessions.filter(
     (s) => s.userId === userId && s.guildId === guildId
