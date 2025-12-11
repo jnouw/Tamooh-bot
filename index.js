@@ -17,6 +17,7 @@ import { studyStatsStore } from "./services/StudyStatsStore.js";
 import { handleQuizStart } from "./handlers/quizHandlers.js";
 import { handleLeaderboard, handleMyStats, handleStudyLeaderboard, handleHelpCommand } from "./handlers/leaderboardHandlers.js";
 import { handleViolationsCommand, handleResetPeriodCommand, handleInsightsCommand } from "./handlers/adminCommandHandlers.js";
+import { handleTamoohMyStatsCommand, handleTamoohInsightsCommand, handleTamoohViolationsCommand, handleTamoohResetPeriodCommand } from "./handlers/tamoohSlashWrappers.js";
 import {
   handleMCQAnswer,
   handleOpenLineModal,
@@ -165,6 +166,17 @@ async function handleSlashCommand(interaction) {
     }
   } else if (interaction.commandName === "study_leaderboard") {
     await handleStudyLeaderboard(interaction);
+  } else if (interaction.commandName === "tamooh") {
+    const subcommand = interaction.options.getSubcommand();
+    if (subcommand === "mystats") {
+      await handleTamoohMyStatsCommand(interaction);
+    } else if (subcommand === "insights") {
+      await handleTamoohInsightsCommand(interaction);
+    } else if (subcommand === "violations") {
+      await handleTamoohViolationsCommand(interaction);
+    } else if (subcommand === "reset-period") {
+      await handleTamoohResetPeriodCommand(interaction);
+    }
   } else if (interaction.commandName === "help") {
     await handleHelpCommand(interaction);
   }
