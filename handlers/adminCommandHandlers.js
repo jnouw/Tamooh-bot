@@ -4,13 +4,16 @@ import Discord from "discord.js";
 
 const { EmbedBuilder } = Discord;
 
+const QIMAH_TEAM_ROLE_ID = "1345211405556514906";
+
 /**
- * Check if user is admin or owner
+ * Check if user is admin, owner, or has Qimah team role
  */
 function isAdmin(message) {
   return (
     message.author.id === OWNER_ID ||
-    message.member?.permissions.has("Administrator")
+    message.member?.permissions.has("Administrator") ||
+    message.member?.roles.cache.has(QIMAH_TEAM_ROLE_ID)
   );
 }
 
@@ -173,4 +176,122 @@ export async function handleResetPeriodCommand(message) {
     }
     await confirmMsg.delete().catch(() => {});
   }
+}
+
+/**
+ * Handle !insights command - show cool server-wide insights
+ * Usage: !insights
+ */
+export async function handleInsightsCommand(message) {
+  if (!isAdmin(message)) {
+    await message.reply("❌ This command is only available to administrators.");
+    return;
+  }
+
+  const insights = studyStatsStore.getServerInsights(message.guildId);
+
+  if (insights.totalSessions === 0) {
+    await message.reply("📊 No study sessions recorded yet. Start studying to see insights!");
+    return;
+  }
+
+  // Format peak hour
+  const formatHour = (h) => {
+    const hour = parseInt(h);
+    if (hour === 0) return "12 AM";
+    if (hour < 12) return `${hour} AM`;
+    if (hour === 12) return "12 PM";
+    return `${hour - 12} PM`;
+  };
+
+  // Format total hours as days + hours
+  const days = Math.floor(insights.totalHours / 24);
+  const hours = Math.round((insights.totalHours % 24) * 10) / 10;
+
+  // Build the embed
+  const embed = new EmbedBuilder()
+    .setTitle("🌟 Server Study Insights")
+    .setColor(0x5865F2)
+    .setDescription(
+      `**📊 Overall Statistics**\n` +
+      `Total Study Time: **${insights.totalHours}h** (${days}d ${hours}h)\n` +
+      `Total Sessions: **${insights.totalSessions}** sessions\n` +
+      `Active Students: **${insights.totalUsers}** users\n` +
+      `Average Session: **${insights.avgSessionLength}h**`
+    )
+    .addFields(
+      {
+        name: "📅 Activity Patterns",
+        value:
+          `Most Active Day: **${insights.mostActiveDay}**\n` +
+          `Peak Hour: **${formatHour(insights.peakHour)}**\n` +
+          `Last 7 Days: **${insights.recentSessions}** sessions (**${insights.recentHours}h**)`,
+        inline: true
+      },
+      {
+        name: "🏆 Top Performers",
+        value: insights.topPerformer
+          ? `#1: <@${insights.topPerformer.userId}>\n` +
+            `Study Time: **${insights.topPerformer.lifetimeHours}h**\n` +
+            `Sessions: **${insights.topPerformer.totalSessions}**`
+          : "No data yet",
+        inline: true
+      }
+    );
+
+  // Add consistency champion if available
+  if (insights.mostConsistentUser) {
+    embed.addFields({
+      name: "🔥 Consistency Champion",
+      value:
+        `<@${insights.mostConsistentUser}>\n` +
+        `Longest Streak: **${insights.highestStreak} days**`,
+      inline: true
+    });
+  }
+
+  // Add giveaway stats if there have been giveaways
+  if (insights.totalGiveaways > 0) {
+    embed.addFields({
+      name: "🎁 Giveaway Stats",
+      value:
+        `Total Giveaways: **${insights.totalGiveaways}**\n` +
+        `Unique Winners: **${insights.uniqueWinners}**\n` +
+        `Win Distribution: **${((insights.uniqueWinners / insights.totalUsers) * 100).toFixed(1)}%** of active users`,
+      inline: false
+    });
+  }
+
+  // Add fun facts
+  const funFacts = [];
+
+  if (insights.totalHours >= 1000) {
+    funFacts.push("🎉 Over 1,000 hours studied!");
+  }
+  if (insights.totalSessions >= 5000) {
+    funFacts.push("💪 Over 5,000 sessions completed!");
+  }
+  if (insights.totalUsers >= 50) {
+    funFacts.push("🌍 Over 50 active students!");
+  }
+  if (insights.highestStreak >= 30) {
+    funFacts.push(`🔥 Someone studied for ${insights.highestStreak} days straight!`);
+  }
+  if (insights.recentHours > insights.totalHours * 0.2) {
+    funFacts.push("📈 Server activity is trending up!");
+  }
+
+  if (funFacts.length > 0) {
+    embed.addFields({
+      name: "✨ Fun Facts",
+      value: funFacts.join("\n"),
+      inline: false
+    });
+  }
+
+  embed.setFooter({
+    text: `Keep studying to improve these stats! | Total: ${insights.totalHours}h across ${insights.totalUsers} users`
+  }).setTimestamp();
+
+  await message.reply({ embeds: [embed] });
 }

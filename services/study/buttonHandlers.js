@@ -237,6 +237,7 @@ export async function handleShowStats(interaction) {
   const guildStats = studyStatsStore.getGuildStats(guildId);
   const streak = studyStatsStore.getStudyStreak(userId, guildId);
   const tickets = studyStatsStore.calculateTickets(stats.lifetimeHours, stats.currentPeriodHours);
+  const insights = studyStatsStore.getUserSmartInsights(userId, guildId);
 
   // Calculate ACTUAL total tickets (matching giveaway logic)
   // This counts ALL eligible users with required roles, not just those with sessions
@@ -386,29 +387,17 @@ export async function handleShowStats(interaction) {
     });
   }
 
-  // Giveaway Stats (only if there have been giveaways)
-  if (winStats.totalGiveaways > 0) {
-    const winRateDisplay = winStats.winRate > 0 ? `${winStats.winRate}%` : "0%";
-    const giveawayStatus = winStats.totalWins > 0
-      ? "🌟 Winner!"
-      : "🎯 Keep grinding for your first win!";
-
-    let giveawayText = `Wins: **${winStats.totalWins}** | Win Rate: **${winRateDisplay}** | ${giveawayStatus}`;
-
-    if (winStats.recentWins.length > 0) {
-      const recentWinsList = winStats.recentWins
-        .slice(0, 3)
-        .map((w) => {
-          const date = new Date(w.timestamp);
-          return `• ${w.prizeName} (${date.toLocaleDateString()})`;
-        })
-        .join("\n");
-      giveawayText += `\n\n**Recent Wins:**\n${recentWinsList}`;
-    }
+  // Smart Insights (only if user has sessions)
+  if (stats.totalSessions > 0) {
+    const insightsText =
+      `💡 You study best on ${insights.bestDay}!\n` +
+      `💡 Most productive: ${insights.mostProductiveTime}\n` +
+      `💡 Avg ${insights.avgSessionLength}h sessions\n` +
+      `💡 Longest session: ${insights.longestSession}hrs`;
 
     embed.addFields({
-      name: "🏆 Giveaway Performance",
-      value: giveawayText,
+      name: "💡 Smart Insights",
+      value: insightsText,
       inline: false
     });
   }

@@ -16,7 +16,7 @@ import { setupStudySystem, handleStudyStart, handleTopicSubmit, handleFindGroups
 import { studyStatsStore } from "./services/StudyStatsStore.js";
 import { handleQuizStart } from "./handlers/quizHandlers.js";
 import { handleLeaderboard, handleMyStats, handleStudyLeaderboard, handleHelpCommand } from "./handlers/leaderboardHandlers.js";
-import { handleViolationsCommand, handleResetPeriodCommand } from "./handlers/adminCommandHandlers.js";
+import { handleViolationsCommand, handleResetPeriodCommand, handleInsightsCommand } from "./handlers/adminCommandHandlers.js";
 import {
   handleMCQAnswer,
   handleOpenLineModal,
@@ -196,6 +196,8 @@ client.on("messageCreate", async (message) => {
       await handleViolationsCommand(message);
     } else if (command === "reset_period") {
       await handleResetPeriodCommand(message);
+    } else if (command === "insights") {
+      await handleInsightsCommand(message);
     }
   } catch (error) {
     logger.error("Message command error", {
