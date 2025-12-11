@@ -1,6 +1,6 @@
 import { studyStatsStore } from "../services/StudyStatsStore.js";
 import Discord from "discord.js";
-import { OWNER_ID } from "../services/study/config.js";
+import { OWNER_ID, STUDY_ROLE_ID, TAMOOH_ROLE_ID } from "../services/study/config.js";
 
 const { EmbedBuilder } = Discord;
 
@@ -34,9 +34,6 @@ export async function handleTamoohMyStatsCommand(interaction) {
   const streak = studyStatsStore.getStudyStreak(userId, guildId);
   const tickets = studyStatsStore.calculateTickets(stats.lifetimeHours, stats.currentPeriodHours);
   const insights = studyStatsStore.getUserSmartInsights(userId, guildId);
-
-  const STUDY_ROLE_ID = "1286798754913448028";
-  const TAMOOH_ROLE_ID = "1262104683728048178";
 
   // Calculate ACTUAL total tickets (matching giveaway logic)
   await interaction.guild.members.fetch();

@@ -1,5 +1,5 @@
 import { studyStatsStore } from "../services/StudyStatsStore.js";
-import { OWNER_ID } from "../services/study/config.js";
+import { OWNER_ID, STUDY_ROLE_ID, TAMOOH_ROLE_ID } from "../services/study/config.js";
 import Discord from "discord.js";
 
 const { EmbedBuilder } = Discord;
@@ -198,9 +198,6 @@ async function showUserStats(message) {
   await message.guild.members.fetch();
   const allMembers = message.guild.members.cache;
   let totalTickets = 0;
-
-  const STUDY_ROLE_ID = "1286798754913448028";
-  const TAMOOH_ROLE_ID = "1262104683728048178";
 
   // Check if current user is eligible for giveaways
   const currentMember = message.member;
