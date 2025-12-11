@@ -590,6 +590,162 @@ export class StudyStatsStore {
       rank: userRank
     };
   }
+
+  /**
+   * Get smart insights about user's study patterns
+   * @param {string} userId - Discord user ID
+   * @param {string} guildId - Discord guild ID
+   * @returns {{ bestDay: string, mostProductiveTime: string, avgSessionLength: number, longestSession: number }}
+   */
+  getUserSmartInsights(userId, guildId) {
+    const userSessions = this.data.sessions
+      .filter(s => s.userId === userId && s.guildId === guildId && s.valid === true);
+
+    if (userSessions.length === 0) {
+      return {
+        bestDay: "N/A",
+        mostProductiveTime: "N/A",
+        avgSessionLength: 0,
+        longestSession: 0
+      };
+    }
+
+    // Calculate best day (most sessions)
+    const dayCount = {};
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    userSessions.forEach(s => {
+      const day = new Date(s.timestamp).getDay();
+      dayCount[day] = (dayCount[day] || 0) + 1;
+    });
+
+    const bestDayNum = Object.keys(dayCount).reduce((a, b) =>
+      dayCount[a] > dayCount[b] ? a : b
+    );
+    const bestDay = dayNames[bestDayNum];
+
+    // Calculate most productive time (hour with most sessions)
+    const hourCount = {};
+    userSessions.forEach(s => {
+      const hour = new Date(s.timestamp).getHours();
+      hourCount[hour] = (hourCount[hour] || 0) + 1;
+    });
+
+    const mostProductiveHour = Object.keys(hourCount).reduce((a, b) =>
+      hourCount[a] > hourCount[b] ? a : b
+    );
+
+    // Format time range (e.g., "2-3 PM")
+    const formatHour = (h) => {
+      const hour = parseInt(h);
+      const nextHour = hour + 1;
+      const formatTime = (h) => {
+        if (h === 0) return "12 AM";
+        if (h < 12) return `${h} AM`;
+        if (h === 12) return "12 PM";
+        return `${h - 12} PM`;
+      };
+      return `${formatTime(hour)}-${formatTime(nextHour)}`;
+    };
+    const mostProductiveTime = formatHour(mostProductiveHour);
+
+    // Calculate average session length
+    const totalMinutes = userSessions.reduce((sum, s) => sum + s.minutes, 0);
+    const avgSessionLength = Math.round((totalMinutes / userSessions.length / 60) * 10) / 10;
+
+    // Find longest session
+    const longestSessionMinutes = Math.max(...userSessions.map(s => s.minutes));
+    const longestSession = Math.round((longestSessionMinutes / 60) * 10) / 10;
+
+    return {
+      bestDay,
+      mostProductiveTime,
+      avgSessionLength,
+      longestSession
+    };
+  }
+
+  /**
+   * Get server-wide insights for admin
+   * @param {string} guildId - Discord guild ID
+   * @returns {Object} - Server insights
+   */
+  getServerInsights(guildId) {
+    const allSessions = this.data.sessions.filter(s => s.guildId === guildId && s.valid === true);
+    const leaderboard = this.getLeaderboard(guildId, 9999);
+    const giveawayWins = this.data.giveawayWins.filter(w => w.guildId === guildId);
+
+    // Total stats
+    const totalSessions = allSessions.length;
+    const totalHours = Math.round(allSessions.reduce((sum, s) => sum + s.minutes, 0) / 60 * 10) / 10;
+    const totalUsers = leaderboard.length;
+
+    // Most active day
+    const dayCount = {};
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    allSessions.forEach(s => {
+      const day = new Date(s.timestamp).getDay();
+      dayCount[day] = (dayCount[day] || 0) + 1;
+    });
+    const mostActiveDayNum = Object.keys(dayCount).length > 0
+      ? Object.keys(dayCount).reduce((a, b) => dayCount[a] > dayCount[b] ? a : b)
+      : 0;
+    const mostActiveDay = dayNames[mostActiveDayNum];
+
+    // Most productive hour
+    const hourCount = {};
+    allSessions.forEach(s => {
+      const hour = new Date(s.timestamp).getHours();
+      hourCount[hour] = (hourCount[hour] || 0) + 1;
+    });
+    const peakHour = Object.keys(hourCount).length > 0
+      ? Object.keys(hourCount).reduce((a, b) => hourCount[a] > hourCount[b] ? a : b)
+      : 0;
+
+    // Average session length
+    const avgSessionLength = totalSessions > 0
+      ? Math.round((totalHours / totalSessions) * 10) / 10
+      : 0;
+
+    // Top performer
+    const topPerformer = leaderboard[0] || null;
+
+    // Recent activity (last 7 days)
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    const recentSessions = allSessions.filter(s => s.timestamp >= sevenDaysAgo);
+    const recentHours = Math.round(recentSessions.reduce((sum, s) => sum + s.minutes, 0) / 60 * 10) / 10;
+
+    // Giveaway stats
+    const totalGiveaways = new Set(giveawayWins.map(w => w.timestamp)).size;
+    const uniqueWinners = new Set(giveawayWins.map(w => w.userId)).size;
+
+    // Most consistent user (highest streak)
+    let mostConsistentUser = null;
+    let highestStreak = 0;
+    for (const user of leaderboard.slice(0, 50)) { // Check top 50 to avoid performance issues
+      const streak = this.getStudyStreak(user.userId, guildId);
+      if (streak.longestStreak > highestStreak) {
+        highestStreak = streak.longestStreak;
+        mostConsistentUser = user.userId;
+      }
+    }
+
+    return {
+      totalSessions,
+      totalHours,
+      totalUsers,
+      mostActiveDay,
+      peakHour,
+      avgSessionLength,
+      topPerformer,
+      recentSessions: recentSessions.length,
+      recentHours,
+      totalGiveaways,
+      uniqueWinners,
+      mostConsistentUser,
+      highestStreak
+    };
+  }
 }
 
 // Export singleton instance
