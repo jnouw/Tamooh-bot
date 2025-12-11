@@ -529,6 +529,26 @@
       "percent": 0,
       "chapter": null,
       "createdAt": 1763872893037
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "1345508252703654018",
+      "mode": "mcq",
+      "score": 4,
+      "total": 8,
+      "percent": 50,
+      "chapter": "1",
+      "createdAt": 1765419561179
+    },
+    {
+      "guildId": "1293617158747590656",
+      "userId": "274462470674972682",
+      "mode": "finderror",
+      "score": 1,
+      "total": 3,
+      "percent": 33,
+      "chapter": "5",
+      "createdAt": 1765419734127
     }
   ]
 }
