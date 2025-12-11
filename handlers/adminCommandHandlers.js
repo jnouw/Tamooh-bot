@@ -179,12 +179,216 @@ export async function handleResetPeriodCommand(message) {
 }
 
 /**
+ * Show personal stats for a user (called from !insights my)
+ */
+async function showUserStats(message) {
+  const userId = message.author.id;
+  const guildId = message.guild.id;
+
+  // Get all stats (using same logic as "My Stats" button)
+  const stats = studyStatsStore.getUserStats(userId, guildId);
+  const winStats = studyStatsStore.getUserWinStats(userId, guildId);
+  const ranking = studyStatsStore.getUserRanking(userId, guildId);
+  const guildStats = studyStatsStore.getGuildStats(guildId);
+  const streak = studyStatsStore.getStudyStreak(userId, guildId);
+  const tickets = studyStatsStore.calculateTickets(stats.lifetimeHours, stats.currentPeriodHours);
+  const insights = studyStatsStore.getUserSmartInsights(userId, guildId);
+
+  // Calculate ACTUAL total tickets (matching giveaway logic)
+  await message.guild.members.fetch();
+  const allMembers = message.guild.members.cache;
+  let totalTickets = 0;
+
+  const STUDY_ROLE_ID = "1286798754913448028";
+  const TAMOOH_ROLE_ID = "1262104683728048178";
+
+  // Check if current user is eligible for giveaways
+  const currentMember = message.member;
+  const userHasStudyRole = currentMember.roles.cache.has(STUDY_ROLE_ID);
+  const userHasTamoohRole = currentMember.roles.cache.has(TAMOOH_ROLE_ID);
+  const isEligible = userHasStudyRole && userHasTamoohRole;
+
+  for (const [memberId, member] of allMembers) {
+    if (member.user.bot) continue;
+
+    const hasStudyRole = member.roles.cache.has(STUDY_ROLE_ID);
+    const hasTamoohRole = member.roles.cache.has(TAMOOH_ROLE_ID);
+
+    if (!hasStudyRole || !hasTamoohRole) continue;
+
+    const memberStats = studyStatsStore.getUserStats(memberId, guildId);
+    const memberTickets = studyStatsStore.calculateTickets(memberStats.lifetimeHours, memberStats.currentPeriodHours);
+
+    totalTickets += memberTickets;
+  }
+
+  // Calculate accurate win chance (0% if user doesn't have required roles)
+  const winChance = isEligible && totalTickets > 0 ? (tickets / totalTickets) * 100 : 0;
+  const winningChances = {
+    userTickets: isEligible ? tickets : 0,
+    totalTickets: totalTickets,
+    winChance: Math.round(winChance * 100) / 100
+  };
+
+  const allSessions = studyStatsStore.data.sessions.filter(
+    (s) => s.userId === userId && s.guildId === guildId
+  );
+  const totalAttempts = allSessions.length;
+  const invalidSessions = allSessions.filter((s) => !s.valid).length;
+  const validationRate =
+    totalAttempts > 0 ? ((stats.totalSessions / totalAttempts) * 100).toFixed(1) + "%" : "N/A";
+
+  const avgSessionLength =
+    stats.totalSessions > 0 ? (stats.lifetimeHours / stats.totalSessions).toFixed(1) : 0;
+
+  // Create progress bar
+  const createProgressBar = (current, max, length = 10) => {
+    const filledLength = Math.min(Math.round((current / max) * length), length);
+    const emptyLength = length - filledLength;
+    return "█".repeat(filledLength) + "░".repeat(emptyLength);
+  };
+
+  // Determine rank emoji and color
+  let rankEmoji = "📊";
+  let embedColor = 0x5865F2;
+  if (ranking.rank === 1) {
+    rankEmoji = "👑";
+    embedColor = 0xFFD700;
+  } else if (ranking.rank === 2) {
+    rankEmoji = "🥈";
+    embedColor = 0xC0C0C0;
+  } else if (ranking.rank === 3) {
+    rankEmoji = "🥉";
+    embedColor = 0xCD7F32;
+  } else if (ranking.percentile >= 90) {
+    rankEmoji = "⭐";
+    embedColor = 0x9B59B6;
+  } else if (ranking.percentile >= 75) {
+    rankEmoji = "🔥";
+    embedColor = 0xE67E22;
+  }
+
+  // Calculate gap to leader
+  const gapToLeader = guildStats.topHours - stats.lifetimeHours;
+  const gapText = gapToLeader > 0
+    ? `${gapToLeader.toFixed(1)}h behind #1`
+    : "You're #1! 🎉";
+
+  // Calculate comparison to average
+  const vsAverage = stats.lifetimeHours - guildStats.averageHours;
+  const vsAverageText = vsAverage >= 0
+    ? `+${vsAverage.toFixed(1)}h above average`
+    : `${Math.abs(vsAverage).toFixed(1)}h below average`;
+
+  // Competitive description
+  let description = `${rankEmoji} **Rank #${ranking.rank}** out of ${ranking.totalUsers} (Top ${ranking.percentile}%)\n`;
+  if (ranking.rank === 1) {
+    description += "🏆 **You're dominating the leaderboard!**";
+  } else if (ranking.percentile >= 90) {
+    description += "⚡ **You're in the elite top 10%!**";
+  } else if (ranking.percentile >= 75) {
+    description += "💪 **Strong performance! Keep climbing!**";
+  } else if (ranking.percentile >= 50) {
+    description += "📈 **You're above average! Push harder!**";
+  } else {
+    description += "🎯 **Time to grind and climb the ranks!**";
+  }
+
+  // Determine next milestone
+  const hourMilestones = [3, 10, 24, 48, 72, 96, 120, 168, 240, 336, 500, 1000];
+  const nextMilestone = hourMilestones.find(m => m > stats.lifetimeHours) || (Math.ceil(stats.lifetimeHours / 100) * 100 + 100);
+  const hoursToNext = nextMilestone - stats.lifetimeHours;
+  const milestoneProgress = stats.lifetimeHours / nextMilestone;
+  const milestoneBar = createProgressBar(stats.lifetimeHours, nextMilestone, 12);
+
+  // Build embed
+  const embed = new EmbedBuilder()
+    .setTitle("💎 Your Competitive Study Profile")
+    .setColor(embedColor)
+    .setDescription(description)
+    .addFields(
+      { name: "🏅 Server Standing", value: `Rank: **#${ranking.rank}** / ${ranking.totalUsers} (Top ${ranking.percentile}%)\n${gapText}`, inline: false },
+      { name: "📚 Study Performance", value: `Lifetime: **${stats.lifetimeHours}h** (${vsAverageText})\nSessions: ${stats.totalSessions} | Avg: ${avgSessionLength}h`, inline: true },
+      { name: "⚔️ Current Competition", value: `Period Hours: **${stats.currentPeriodHours}h**\nTickets: 🎫 **${tickets}** | Success: ${validationRate}`, inline: true },
+      { name: "🎰 Next Giveaway Odds", value: `Win Chance: **${winningChances.winChance}%**\nYour Share: ${tickets}/${winningChances.totalTickets} tickets`, inline: false },
+      { name: "🎯 Next Milestone", value: `Goal: **${nextMilestone}h**\n${milestoneBar} ${hoursToNext.toFixed(1)}h to go!`, inline: false }
+    );
+
+  // Add streak section if user has any sessions
+  if (stats.totalSessions > 0) {
+    const streakEmoji = streak.currentStreak >= 7 ? "🔥" : streak.currentStreak >= 3 ? "⚡" : "📅";
+    let streakText = `Current: **${streak.currentStreak} days** ${streakEmoji} | Best: **${streak.longestStreak} days**\n`;
+    streakText += `Last Study: ${streak.lastStudyDate || "N/A"}`;
+    if (streak.currentStreak === 0 && streak.longestStreak > 0) {
+      streakText += "\n💔 Streak lost! Start a new one today!";
+    }
+
+    embed.addFields({
+      name: "🔥 Study Streak",
+      value: streakText,
+      inline: false
+    });
+  }
+
+  // Smart Insights (only if user has sessions)
+  if (stats.totalSessions > 0) {
+    const insightsText =
+      `💡 You study best on ${insights.bestDay}!\n` +
+      `💡 Most productive: ${insights.mostProductiveTime}\n` +
+      `💡 Avg ${insights.avgSessionLength}h sessions\n` +
+      `💡 Longest session: ${insights.longestSession}hrs`;
+
+    embed.addFields({
+      name: "💡 Smart Insights",
+      value: insightsText,
+      inline: false
+    });
+  }
+
+  // Competitive footer message
+  let footerText = "";
+  if (ranking.rank === 1) {
+    footerText = "👑 Defend your throne! Stay consistent!";
+  } else if (winningChances.winChance >= 20) {
+    footerText = `🎰 ${winningChances.winChance}% chance to win! You're in a great position!`;
+  } else if (ranking.rank <= 3) {
+    footerText = "🔥 So close to the top! Keep pushing!";
+  } else if (ranking.percentile >= 75) {
+    footerText = "⚡ You're in the top tier! Don't stop now!";
+  } else if (winningChances.winChance < 5 && stats.currentPeriodHours < 10) {
+    footerText = `📈 Study more to boost your ${winningChances.winChance}% odds!`;
+  } else if (hoursToNext <= 5) {
+    footerText = `🎯 Just ${hoursToNext.toFixed(1)}h until your next milestone!`;
+  } else if (streak.currentStreak >= 3) {
+    footerText = `🔥 ${streak.currentStreak}-day streak! Don't break it!`;
+  } else {
+    footerText = "💪 Every hour counts. Start studying now!";
+  }
+
+  embed.setFooter({ text: footerText }).setTimestamp();
+
+  await message.reply({ embeds: [embed] });
+}
+
+/**
  * Handle !insights command - show cool server-wide insights
- * Usage: !insights
+ * Usage: !insights [my|me|stats|mystats]
  */
 export async function handleInsightsCommand(message) {
+  // Parse subcommand
+  const args = message.content.trim().split(/\s+/);
+  const subcommand = args[1]?.toLowerCase();
+
+  // Handle user stats subcommand (!insights my|me|stats|mystats)
+  if (subcommand === "my" || subcommand === "me" || subcommand === "stats" || subcommand === "mystats") {
+    // Show personal stats for any user
+    await showUserStats(message);
+    return;
+  }
+
+  // Server-wide insights (admin only)
   if (!isAdmin(message)) {
-    await message.reply("❌ This command is only available to administrators.");
+    await message.reply("❌ Server insights are only available to administrators.\n\nTip: Use `!insights my` to see your personal stats!");
     return;
   }
 
