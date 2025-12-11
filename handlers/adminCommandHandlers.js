@@ -4,13 +4,16 @@ import Discord from "discord.js";
 
 const { EmbedBuilder } = Discord;
 
+const QIMAH_TEAM_ROLE_ID = "1345211405556514906";
+
 /**
- * Check if user is admin or owner
+ * Check if user is admin, owner, or has Qimah team role
  */
 function isAdmin(message) {
   return (
     message.author.id === OWNER_ID ||
-    message.member?.permissions.has("Administrator")
+    message.member?.permissions.has("Administrator") ||
+    message.member?.roles.cache.has(QIMAH_TEAM_ROLE_ID)
   );
 }
 
