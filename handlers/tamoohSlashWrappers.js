@@ -1,6 +1,6 @@
 import { studyStatsStore } from "../services/StudyStatsStore.js";
-import { OWNER_ID, STUDY_ROLE_ID, TAMOOH_ROLE_ID } from "../services/study/config.js";
 import Discord from "discord.js";
+import { OWNER_ID, STUDY_ROLE_ID, TAMOOH_ROLE_ID } from "../services/study/config.js";
 
 const { EmbedBuilder } = Discord;
 
@@ -18,172 +18,13 @@ function isAdmin(message) {
 }
 
 /**
- * Handle !violations command - show AFK and gaming violation stats
+ * Slash command wrapper for /tamooh mystats
  */
-export async function handleViolationsCommand(message) {
-  if (!isAdmin(message)) {
-    await message.reply("❌ This command is only available to administrators.");
-    return;
-  }
+export async function handleTamoohMyStatsCommand(interaction) {
+  await interaction.deferReply({ ephemeral: true });
 
-  const violationStats = studyStatsStore.getViolationStats(message.guildId);
-
-  if (violationStats.length === 0) {
-    await message.reply(
-      "✅ No violations found! All users have passed their AFK checks and avoided gaming during study sessions."
-    );
-    return;
-  }
-
-  // Create detailed violation report
-  const lines = violationStats.map((user, i) => {
-    const violations = [];
-    if (user.afkViolations > 0) {
-      violations.push(`❌ ${user.afkViolations} AFK (no DM response)`);
-    }
-    if (user.gamingViolations > 0) {
-      violations.push(`🎮 ${user.gamingViolations} Gaming detected`);
-    }
-
-    const validRate = ((user.validSessions / user.totalSessions) * 100).toFixed(1);
-
-    return (
-      `**${i + 1}.** <@${user.userId}>\n` +
-      `   📊 Sessions: ${user.validSessions} valid / ${user.totalSessions} total (${validRate}%)\n` +
-      `   ⚠️ Violations: ${violations.join(", ")}`
-    );
-  });
-
-  const embed = new EmbedBuilder()
-    .setTitle("⚠️ Study Session Violations Report")
-    .setDescription(lines.join("\n\n"))
-    .setColor(0xed4245)
-    .setFooter({ text: `Total users with violations: ${violationStats.length}` });
-
-  await message.reply({ embeds: [embed] });
-}
-
-/**
- * Handle !reset_period command - reset giveaway period for soft reset
- * Usage: !reset_period
- */
-export async function handleResetPeriodCommand(message) {
-  if (!isAdmin(message)) {
-    await message.reply("❌ This command is only available to administrators.");
-    return;
-  }
-
-  // Confirm before resetting
-  const confirmMsg = await message.reply(
-    "⚠️ **Confirm Giveaway Period Reset**\n\n" +
-      "This will:\n" +
-      "• Reset current period hours to 0 for all users\n" +
-      "• Keep lifetime hours forever (never deleted)\n" +
-      "• Start a fresh competition for the new giveaway\n\n" +
-      "React with ✅ to confirm, or ❌ to cancel. (30 seconds)"
-  );
-
-  try {
-    await confirmMsg.react("✅");
-    await confirmMsg.react("❌");
-  } catch (error) {
-    console.error("[AdminCmd] Failed to add reactions:", error);
-    await message.reply("❌ Failed to add reactions. Check bot permissions (Add Reactions).");
-    return;
-  }
-
-  try {
-    const filter = (reaction, user) => {
-      console.log(`[AdminCmd] Reaction: ${reaction.emoji.name}, User: ${user.id}, Author: ${message.author.id}`);
-      return (reaction.emoji.name === "✅" || reaction.emoji.name === "❌") &&
-        user.id === message.author.id;
-    };
-
-    const collected = await confirmMsg.awaitReactions({
-      filter,
-      max: 1,
-      time: 30000,
-      errors: ["time"],
-    });
-
-    const reaction = collected.first();
-    console.log(`[AdminCmd] Collected reaction: ${reaction?.emoji.name}, Collection size: ${collected.size}`);
-
-    if (!reaction) {
-      console.log("[AdminCmd] No reaction collected");
-      await message.reply("❌ Period reset cancelled (no reaction received).");
-      await confirmMsg.delete().catch(() => {});
-      return;
-    }
-
-    if (reaction.emoji.name === "✅") {
-      console.log("[AdminCmd] Confirmed - executing reset...");
-
-      try {
-        const result = await studyStatsStore.resetGiveawayPeriod(message.guildId);
-        console.log(`[AdminCmd] Reset complete: ${result.usersAffected} users affected`);
-
-        const embed = new EmbedBuilder()
-          .setTitle("✅ Giveaway Period Reset Complete")
-          .setDescription(
-            `**Current period has been reset!**\n\n` +
-              `📊 Users affected: ${result.usersAffected}\n` +
-              `📅 New period started: ${new Date(result.periodStartDate).toLocaleString()}\n\n` +
-              `**What changed:**\n` +
-              `• ✅ Lifetime hours preserved forever\n` +
-              `• 🔄 Current period hours reset to 0\n` +
-              `• 🎫 Tickets will recalculate: 30 + √lifetime×5 + current×3\n\n` +
-              `Newcomers and active studiers now compete fairly!`
-          )
-          .setColor(0x57f287)
-          .setTimestamp();
-
-        await message.reply({ embeds: [embed] }).catch(async (err) => {
-          console.error("[AdminCmd] Failed to reply:", err.message);
-          // Try to send in the channel instead if reply fails
-          await message.channel.send({ embeds: [embed] }).catch(() => {});
-        });
-        await confirmMsg.delete().catch(() => {});
-      } catch (resetError) {
-        console.error("[AdminCmd] Reset failed:", resetError);
-        await message.reply(`❌ Failed to reset period: ${resetError.message}`).catch(async (err) => {
-          console.error("[AdminCmd] Failed to reply with error:", err.message);
-          await message.channel.send(`❌ Failed to reset period: ${resetError.message}`).catch(() => {});
-        });
-        await confirmMsg.delete().catch(() => {});
-      }
-    } else {
-      console.log("[AdminCmd] User cancelled reset");
-      await message.reply("❌ Period reset cancelled.").catch(async (err) => {
-        console.error("[AdminCmd] Failed to reply:", err.message);
-        await message.channel.send("❌ Period reset cancelled.").catch(() => {});
-      });
-      await confirmMsg.delete().catch(() => {});
-    }
-  } catch (error) {
-    if (error.message?.includes('time')) {
-      console.log("[AdminCmd] Reset timed out");
-      await message.reply("❌ Period reset cancelled (timed out).").catch(async (err) => {
-        console.error("[AdminCmd] Failed to reply:", err.message);
-        await message.channel.send("❌ Period reset cancelled (timed out).").catch(() => {});
-      });
-    } else {
-      console.error("[AdminCmd] Unexpected error:", error);
-      await message.reply(`❌ An error occurred: ${error.message}`).catch(async (err) => {
-        console.error("[AdminCmd] Failed to reply:", err.message);
-        await message.channel.send(`❌ An error occurred: ${error.message}`).catch(() => {});
-      });
-    }
-    await confirmMsg.delete().catch(() => {});
-  }
-}
-
-/**
- * Show personal stats for a user (called from !insights my)
- */
-async function showUserStats(message) {
-  const userId = message.author.id;
-  const guildId = message.guild.id;
+  const userId = interaction.user.id;
+  const guildId = interaction.guild.id;
 
   // Get all stats (using same logic as "My Stats" button)
   const stats = studyStatsStore.getUserStats(userId, guildId);
@@ -195,12 +36,12 @@ async function showUserStats(message) {
   const insights = studyStatsStore.getUserSmartInsights(userId, guildId);
 
   // Calculate ACTUAL total tickets (matching giveaway logic)
-  await message.guild.members.fetch();
-  const allMembers = message.guild.members.cache;
+  await interaction.guild.members.fetch();
+  const allMembers = interaction.guild.members.cache;
   let totalTickets = 0;
 
   // Check if current user is eligible for giveaways
-  const currentMember = message.member;
+  const currentMember = interaction.member;
   const userHasStudyRole = currentMember.roles.cache.has(STUDY_ROLE_ID);
   const userHasTamoohRole = currentMember.roles.cache.has(TAMOOH_ROLE_ID);
   const isEligible = userHasStudyRole && userHasTamoohRole;
@@ -219,7 +60,7 @@ async function showUserStats(message) {
     totalTickets += memberTickets;
   }
 
-  // Calculate accurate win chance (0% if user doesn't have required roles)
+  // Calculate accurate win chance
   const winChance = isEligible && totalTickets > 0 ? (tickets / totalTickets) * 100 : 0;
   const winningChances = {
     userTickets: isEligible ? tickets : 0,
@@ -231,7 +72,6 @@ async function showUserStats(message) {
     (s) => s.userId === userId && s.guildId === guildId
   );
   const totalAttempts = allSessions.length;
-  const invalidSessions = allSessions.filter((s) => !s.valid).length;
   const validationRate =
     totalAttempts > 0 ? ((stats.totalSessions / totalAttempts) * 100).toFixed(1) + "%" : "N/A";
 
@@ -295,7 +135,6 @@ async function showUserStats(message) {
   const hourMilestones = [3, 10, 24, 48, 72, 96, 120, 168, 240, 336, 500, 1000];
   const nextMilestone = hourMilestones.find(m => m > stats.lifetimeHours) || (Math.ceil(stats.lifetimeHours / 100) * 100 + 100);
   const hoursToNext = nextMilestone - stats.lifetimeHours;
-  const milestoneProgress = stats.lifetimeHours / nextMilestone;
   const milestoneBar = createProgressBar(stats.lifetimeHours, nextMilestone, 12);
 
   // Build embed
@@ -364,35 +203,24 @@ async function showUserStats(message) {
 
   embed.setFooter({ text: footerText }).setTimestamp();
 
-  await message.reply({ embeds: [embed] });
+  await interaction.editReply({ embeds: [embed] });
 }
 
 /**
- * Handle !insights command - show cool server-wide insights
- * Usage: !insights [my|me|stats|mystats]
+ * Slash command wrapper for /tamooh insights
  */
-export async function handleInsightsCommand(message) {
-  // Parse subcommand
-  const args = message.content.trim().split(/\s+/);
-  const subcommand = args[1]?.toLowerCase();
-
-  // Handle user stats subcommand (!insights my|me|stats|mystats)
-  if (subcommand === "my" || subcommand === "me" || subcommand === "stats" || subcommand === "mystats") {
-    // Show personal stats for any user
-    await showUserStats(message);
+export async function handleTamoohInsightsCommand(interaction) {
+  if (!isAdmin({ author: interaction.user, member: interaction.member })) {
+    await interaction.reply({ content: "❌ This command is only available to administrators.", ephemeral: true });
     return;
   }
 
-  // Server-wide insights (admin only)
-  if (!isAdmin(message)) {
-    await message.reply("❌ Server insights are only available to administrators.\n\nTip: Use `!insights my` to see your personal stats!");
-    return;
-  }
+  await interaction.deferReply();
 
-  const insights = studyStatsStore.getServerInsights(message.guildId);
+  const insights = studyStatsStore.getServerInsights(interaction.guildId);
 
   if (insights.totalSessions === 0) {
-    await message.reply("📊 No study sessions recorded yet. Start studying to see insights!");
+    await interaction.editReply("📊 No study sessions recorded yet. Start studying to see insights!");
     return;
   }
 
@@ -494,5 +322,142 @@ export async function handleInsightsCommand(message) {
     text: `Keep studying to improve these stats! | Total: ${insights.totalHours}h across ${insights.totalUsers} users`
   }).setTimestamp();
 
-  await message.reply({ embeds: [embed] });
+  await interaction.editReply({ embeds: [embed] });
+}
+
+/**
+ * Slash command wrapper for /tamooh violations
+ */
+export async function handleTamoohViolationsCommand(interaction) {
+  if (!isAdmin({ author: interaction.user, member: interaction.member })) {
+    await interaction.reply({ content: "❌ This command is only available to administrators.", ephemeral: true });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  const violationStats = studyStatsStore.getViolationStats(interaction.guildId);
+
+  if (violationStats.length === 0) {
+    await interaction.editReply(
+      "✅ No violations found! All users have passed their AFK checks and avoided gaming during study sessions."
+    );
+    return;
+  }
+
+  // Create detailed violation report
+  const lines = violationStats.map((user, i) => {
+    const violations = [];
+    if (user.afkViolations > 0) {
+      violations.push(`❌ ${user.afkViolations} AFK (no DM response)`);
+    }
+    if (user.gamingViolations > 0) {
+      violations.push(`🎮 ${user.gamingViolations} Gaming detected`);
+    }
+
+    const validRate = ((user.validSessions / user.totalSessions) * 100).toFixed(1);
+
+    return (
+      `**${i + 1}.** <@${user.userId}>\n` +
+      `   📊 Sessions: ${user.validSessions} valid / ${user.totalSessions} total (${validRate}%)\n` +
+      `   ⚠️ Violations: ${violations.join(", ")}`
+    );
+  });
+
+  const embed = new EmbedBuilder()
+    .setTitle("⚠️ Study Session Violations Report")
+    .setDescription(lines.join("\n\n"))
+    .setColor(0xed4245)
+    .setFooter({ text: `Total users with violations: ${violationStats.length}` });
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
+/**
+ * Slash command wrapper for /tamooh reset-period
+ */
+export async function handleTamoohResetPeriodCommand(interaction) {
+  if (!isAdmin({ author: interaction.user, member: interaction.member })) {
+    await interaction.reply({ content: "❌ This command is only available to administrators.", ephemeral: true });
+    return;
+  }
+
+  await interaction.deferReply();
+
+  // Send confirmation message
+  const confirmEmbed = new EmbedBuilder()
+    .setTitle("⚠️ Confirm Giveaway Period Reset")
+    .setDescription(
+      "This will:\n" +
+      "• Reset current period hours to 0 for all users\n" +
+      "• Keep lifetime hours forever (never deleted)\n" +
+      "• Start a fresh competition for the new giveaway\n\n" +
+      "React with ✅ to confirm, or ❌ to cancel. (30 seconds)"
+    )
+    .setColor(0xffa500);
+
+  const confirmMsg = await interaction.editReply({ embeds: [confirmEmbed] });
+
+  try {
+    await confirmMsg.react("✅");
+    await confirmMsg.react("❌");
+  } catch (error) {
+    console.error("[AdminCmd] Failed to add reactions:", error);
+    await interaction.followUp({ content: "❌ Failed to add reactions. Check bot permissions (Add Reactions).", ephemeral: true });
+    return;
+  }
+
+  try {
+    const filter = (reaction, user) => {
+      return (reaction.emoji.name === "✅" || reaction.emoji.name === "❌") &&
+        user.id === interaction.user.id;
+    };
+
+    const collected = await confirmMsg.awaitReactions({
+      filter,
+      max: 1,
+      time: 30000,
+      errors: ["time"],
+    });
+
+    const reaction = collected.first();
+
+    if (!reaction || reaction.emoji.name === "❌") {
+      await interaction.followUp({ content: "❌ Period reset cancelled.", ephemeral: true });
+      return;
+    }
+
+    if (reaction.emoji.name === "✅") {
+      try {
+        const result = await studyStatsStore.resetGiveawayPeriod(interaction.guildId);
+
+        const embed = new EmbedBuilder()
+          .setTitle("✅ Giveaway Period Reset Complete")
+          .setDescription(
+            `**Current period has been reset!**\n\n` +
+            `📊 Users affected: ${result.usersAffected}\n` +
+            `📅 New period started: ${new Date(result.periodStartDate).toLocaleString()}\n\n` +
+            `**What changed:**\n` +
+            `• ✅ Lifetime hours preserved forever\n` +
+            `• 🔄 Current period hours reset to 0\n` +
+            `• 🎫 Tickets will recalculate: 30 + √lifetime×5 + current×3\n\n` +
+            `Newcomers and active studiers now compete fairly!`
+          )
+          .setColor(0x57f287)
+          .setTimestamp();
+
+        await interaction.followUp({ embeds: [embed] });
+      } catch (resetError) {
+        console.error("[AdminCmd] Reset failed:", resetError);
+        await interaction.followUp({ content: `❌ Failed to reset period: ${resetError.message}`, ephemeral: true });
+      }
+    }
+  } catch (error) {
+    if (error.message?.includes('time')) {
+      await interaction.followUp({ content: "❌ Period reset cancelled (timed out).", ephemeral: true });
+    } else {
+      console.error("[AdminCmd] Unexpected error:", error);
+      await interaction.followUp({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+    }
+  }
 }

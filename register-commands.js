@@ -87,6 +87,27 @@ const commands = [
     .toJSON(),
 
   new SlashCommandBuilder()
+    .setName('tamooh')
+    .setDescription('TamoohBot study system commands')
+    .addSubcommand(sc =>
+      sc.setName('mystats')
+        .setDescription('View your personal study statistics and giveaway odds')
+    )
+    .addSubcommand(sc =>
+      sc.setName('insights')
+        .setDescription('View server-wide study insights (Admin only)')
+    )
+    .addSubcommand(sc =>
+      sc.setName('violations')
+        .setDescription('View AFK and gaming violation report (Admin only)')
+    )
+    .addSubcommand(sc =>
+      sc.setName('reset-period')
+        .setDescription('Reset giveaway period for fair competition (Admin only)')
+    )
+    .toJSON(),
+
+  new SlashCommandBuilder()
     .setName('help')
     .setDescription('Show all available commands')
     .toJSON()

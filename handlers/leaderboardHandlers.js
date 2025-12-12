@@ -214,11 +214,11 @@ export async function handleHelpCommand(interaction) {
   const isOwner = interaction.user.id === OWNER_ID;
 
   const embed = new EmbedBuilder()
-    .setTitle("📚 Tamooh Bot - Command List")
+    .setTitle("📚 TamoohBot - Command List")
     .setColor(0x5865F2)
     .addFields(
       {
-        name: "📝 Quiz Commands (Slash)",
+        name: "📝 Quiz Commands",
         value:
           "• `/quiz start` - Start a new quiz (MCQ, Find Error, Output, Code)\n" +
           "• `/quiz leaderboard` - View top quiz performers\n" +
@@ -226,10 +226,19 @@ export async function handleHelpCommand(interaction) {
         inline: false,
       },
       {
-        name: "📖 Study Commands (Slash)",
+        name: "📖 Study Commands",
         value:
           "• `/study_leaderboard` - View top 10 students by study time\n" +
           "  Shows tickets, lifetime hours, current period hours, and win chance",
+        inline: false,
+      },
+      {
+        name: "⚡ TamoohBot Commands",
+        value:
+          "• `/tamooh mystats` - View your personal study statistics and giveaway odds\n" +
+          "• `/tamooh insights` - View server-wide study insights (Admin only)\n" +
+          "• `/tamooh violations` - View violation report (Admin only)\n" +
+          "• `/tamooh reset-period` - Reset giveaway period (Admin only)",
         inline: false,
       },
       {
@@ -258,21 +267,21 @@ export async function handleHelpCommand(interaction) {
       }
     );
 
-  // Add owner-only commands section if user is owner
+  // Add note about legacy commands for owner
   if (isOwner) {
     embed.addFields({
-      name: "⚙️ Admin Commands (! prefix) - Owner Only",
+      name: "🔧 Legacy Commands (! prefix) - Owner Only",
       value:
-        "• `!violations` - View detailed violation report\n" +
-        "  Shows users with AFK or gaming violations during study sessions\n\n" +
-        "• `!reset_period` - Reset giveaway period (soft reset)\n" +
-        "  Resets current period hours to 0, keeps lifetime hours forever\n" +
-        "  Use after each giveaway for fair competition",
+        "• `!insights` - Server insights (use `/tamooh insights` instead)\n" +
+        "• `!insights my` - Personal stats (use `/tamooh mystats` instead)\n" +
+        "• `!violations` - Violations (use `/tamooh violations` instead)\n" +
+        "• `!reset_period` - Reset period (use `/tamooh reset-period` instead)\n" +
+        "• `!giveaway <prize>` - Run a giveaway",
       inline: false,
     });
-    embed.setFooter({ text: "Study consistently and good luck! 💚 | Owner mode active 👑" });
+    embed.setFooter({ text: "Study consistently and good luck! 💚 | TamoohBot v2.0" });
   } else {
-    embed.setFooter({ text: "Study consistently and good luck! 💚" });
+    embed.setFooter({ text: "Study consistently and good luck! 💚 | TamoohBot v2.0" });
   }
 
   await interaction.reply({ embeds: [embed], ephemeral: true });
