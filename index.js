@@ -18,6 +18,17 @@ import { handleQuizStart } from "./handlers/quizHandlers.js";
 import { handleLeaderboard, handleMyStats, handleStudyLeaderboard, handleHelpCommand } from "./handlers/leaderboardHandlers.js";
 import { handleViolationsCommand, handleResetPeriodCommand, handleInsightsCommand } from "./handlers/adminCommandHandlers.js";
 import { handleTamoohMyStatsCommand, handleTamoohInsightsCommand, handleTamoohViolationsCommand, handleTamoohResetPeriodCommand } from "./handlers/tamoohSlashWrappers.js";
+import { swapStore } from "./services/SwapStore.js";
+import { swapCoordinator } from "./services/SwapCoordinator.js";
+import {
+  handleSwapAdd,
+  handleSwapMy,
+  handleSwapCancel,
+  handleSwapHelp,
+  handleSwapAdminSettings,
+  handleSwapAdminStats,
+  handleSwapAdminPurge
+} from "./handlers/swapHandlers.js";
 import {
   handleMCQAnswer,
   handleOpenLineModal,
@@ -54,6 +65,14 @@ const client = new Client({
 // Init Study With Me system
 setupStudySystem(client);
 
+// Init Section Swap Matchmaking system
+try {
+  swapStore.init();
+} catch (error) {
+  logger.error('Failed to initialize SwapStore', { error: error.message });
+  console.error('⚠️  WARNING: Section swap system failed to initialize.');
+}
+
 // Check Java availability on startup
 let javaAvailable = false;
 checkJavaAvailable().then((available) => {
@@ -83,6 +102,18 @@ client.once("ready", async () => {
   // Start health check if configured
   if (CONFIG.LOG_STATS && CONFIG.HEALTH_CHECK_INTERVAL_MS) {
     startHealthCheck();
+  }
+
+  // Initialize swap coordinator (needs client)
+  try {
+    swapCoordinator.init(client);
+    if (CONFIG.SWAP.MATCHES_CHANNEL_ID) {
+      logger.info('Section swap system ready');
+    } else {
+      logger.warn('Section swap system: SWAP_MATCHES_CHANNEL_ID not configured');
+    }
+  } catch (error) {
+    logger.error('Failed to initialize SwapCoordinator', { error: error.message });
   }
 });
 
@@ -179,6 +210,29 @@ async function handleSlashCommand(interaction) {
     }
   } else if (interaction.commandName === "help") {
     await handleHelpCommand(interaction);
+  } else if (interaction.commandName === "swap") {
+    const subcommandGroup = interaction.options.getSubcommandGroup(false);
+    const subcommand = interaction.options.getSubcommand();
+
+    if (subcommandGroup === "admin") {
+      if (subcommand === "settings") {
+        await handleSwapAdminSettings(interaction);
+      } else if (subcommand === "stats") {
+        await handleSwapAdminStats(interaction);
+      } else if (subcommand === "purge_expired") {
+        await handleSwapAdminPurge(interaction);
+      }
+    } else {
+      if (subcommand === "add") {
+        await handleSwapAdd(interaction);
+      } else if (subcommand === "my") {
+        await handleSwapMy(interaction);
+      } else if (subcommand === "cancel") {
+        await handleSwapCancel(interaction);
+      } else if (subcommand === "help") {
+        await handleSwapHelp(interaction);
+      }
+    }
   }
 }
 
@@ -189,9 +243,6 @@ client.on("messageCreate", async (message) => {
   // Ignore bots
   if (message.author.bot) return;
 
-  // Only process commands starting with !
-  if (!message.content.startsWith("!")) return;
-
   // Lock to Qimah guild if env is set
   if (
     process.env.QIMAH_GUILD_ID &&
@@ -199,6 +250,21 @@ client.on("messageCreate", async (message) => {
   ) {
     return;
   }
+
+  // Handle swap thread confirmations (for any message in threads)
+  if (message.channel.isThread()) {
+    try {
+      await swapCoordinator.handleThreadMessage(message);
+    } catch (error) {
+      logger.error("Swap thread message error", {
+        error: error.message,
+        threadId: message.channel.id,
+      });
+    }
+  }
+
+  // Only process prefix commands starting with !
+  if (!message.content.startsWith("!")) return;
 
   const args = message.content.slice(1).trim().split(/\s+/);
   const command = args.shift().toLowerCase();
@@ -353,6 +419,8 @@ process.on("SIGTERM", async () => {
     logger.error("Failed to save scores on shutdown", { error: error.message });
   }
   sessionManager.cleanup();
+  swapCoordinator.stop();
+  swapStore.close();
   client.destroy();
   process.exit(0);
 });
@@ -365,6 +433,8 @@ process.on("SIGINT", async () => {
     logger.error("Failed to save scores on shutdown", { error: error.message });
   }
   sessionManager.cleanup();
+  swapCoordinator.stop();
+  swapStore.close();
   client.destroy();
   process.exit(0);
 });
