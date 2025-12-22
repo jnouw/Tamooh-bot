@@ -277,7 +277,7 @@ class SwapStore {
   }
 
   /**
-   * Cancel a request
+   * Cancel a request (allowed for both 'open' and 'pending' status)
    */
   cancelRequest(id, userId) {
     const request = this.getRequestById(id);
@@ -287,12 +287,17 @@ class SwapStore {
     if (request.user_id !== userId) {
       return { success: false, error: 'You can only cancel your own requests' };
     }
-    if (request.status !== 'open') {
-      return { success: false, error: 'Only open requests can be cancelled' };
+    if (request.status !== 'open' && request.status !== 'pending') {
+      return { success: false, error: 'Only open or pending requests can be cancelled' };
     }
 
+    // Check if this request is part of a pending match
+    const matchParticipant = this.db.prepare(`
+      SELECT match_id FROM swap_match_participants WHERE request_id = ?
+    `).get(id);
+
     this.updateRequestStatus(id, 'cancelled');
-    return { success: true, request };
+    return { success: true, request, matchId: matchParticipant?.match_id || null };
   }
 
   /**
@@ -369,18 +374,18 @@ class SwapStore {
   }
 
   /**
-   * Expire old open requests
+   * Expire old open requests for a specific guild
    */
-  expireOldRequests(expiryDays) {
+  expireOldRequests(guildId, expiryDays) {
     const cutoff = Date.now() - (expiryDays * 24 * 60 * 60 * 1000);
     const result = this.db.prepare(`
       UPDATE swap_requests
       SET status = 'expired', updated_at = ?
-      WHERE status = 'open' AND created_at < ?
-    `).run(Date.now(), cutoff);
+      WHERE guild_id = ? AND status = 'open' AND created_at < ?
+    `).run(Date.now(), guildId, cutoff);
 
     if (result.changes > 0) {
-      logger.info('Expired old requests', { count: result.changes, expiryDays });
+      logger.info('Expired old requests', { guildId, count: result.changes, expiryDays });
     }
 
     return result.changes;
@@ -671,8 +676,8 @@ class SwapStore {
   purgeExpired(guildId) {
     const settings = this.getSettings(guildId);
 
-    // Expire old requests
-    const requestCount = this.expireOldRequests(settings.request_expiry_days);
+    // Expire old requests for this guild only
+    const requestCount = this.expireOldRequests(guildId, settings.request_expiry_days);
 
     // Expire timed-out matches
     const expiredMatches = this.getExpiredMatches();

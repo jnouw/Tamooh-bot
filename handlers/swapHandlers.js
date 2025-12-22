@@ -264,17 +264,12 @@ export async function handleSwapCancel(interaction) {
     });
   }
 
-  // Check if this request was part of a pending match
-  // If so, we need to cancel the match and notify others
-  const matchParticipant = swapStore.db.prepare(`
-    SELECT match_id FROM swap_match_participants WHERE request_id = ?
-  `).get(requestId);
-
-  if (matchParticipant) {
-    const match = swapStore.getMatchById(matchParticipant.match_id);
+  // If this request was part of a pending match, cancel it and notify others
+  if (result.matchId) {
+    const match = swapStore.getMatchById(result.matchId);
     if (match && match.status === 'pending_confirm') {
-      swapStore.cancelMatch(matchParticipant.match_id);
-      await swapCoordinator.notifyMatchCancelled(matchParticipant.match_id);
+      swapStore.cancelMatch(result.matchId);
+      await swapCoordinator.notifyMatchCancelled(result.matchId);
     }
   }
 

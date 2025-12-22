@@ -234,12 +234,12 @@ class SwapCoordinator {
       }
     }
 
-    // Also expire old requests
+    // Also expire old requests per guild
     // Get all unique guild IDs from settings
     const guilds = [...swapStore.settings.keys()];
     for (const guildId of guilds) {
       const settings = swapStore.getSettings(guildId);
-      swapStore.expireOldRequests(settings.request_expiry_days);
+      swapStore.expireOldRequests(guildId, settings.request_expiry_days);
     }
   }
 
