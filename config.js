@@ -53,4 +53,34 @@ export const CONFIG = {
   // Health monitoring
   HEALTH_CHECK_INTERVAL_MS: 60000,  // 1 minute
   LOG_STATS: true,                   // Log periodic statistics
+
+  // Section Swap Matchmaking
+  SWAP: {
+    // Required: Channel ID where match threads will be created
+    MATCHES_CHANNEL_ID: process.env.SWAP_MATCHES_CHANNEL_ID || null,
+
+    // Optional: Restrict /swap add to users with this role
+    STUDENT_ROLE_ID: process.env.SWAP_STUDENT_ROLE_ID || null,
+
+    // Allow 3-way swap cycles (default: false, can be changed via admin command)
+    ALLOW_THREE_WAY: false,
+
+    // Minutes before a pending match expires if not all confirmed
+    CONFIRM_TIMEOUT_MINUTES: 120,
+
+    // Days before an open request expires
+    REQUEST_EXPIRY_DAYS: 7,
+
+    // Rate limiting: milliseconds between /swap add commands per user
+    ADD_COOLDOWN_MS: 30000,
+
+    // Max open requests per user per (campus, course)
+    MAX_REQUESTS_PER_USER_COURSE: 3,
+
+    // Background job interval for checking expired matches/requests
+    EXPIRY_CHECK_INTERVAL_MS: 60000,
+
+    // Valid campus values
+    VALID_CAMPUSES: ['F', 'M'],
+  },
 };
