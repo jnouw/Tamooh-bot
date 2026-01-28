@@ -7,6 +7,7 @@ export const VOICE_CATEGORY_ID = process.env.VOICE_CATEGORY_ID || "1366787196719
 export const STUDY_ROLE_ID = process.env.STUDY_ROLE_ID || "1443203557628186755";
 export const TAMOOH_ROLE_ID = process.env.TAMOOH_ROLE_ID || "1367043626806542336";
 export const OWNER_ID = process.env.OWNER_ID || "274462470674972682";
+export const QIMAH_TEAM_ROLE_ID = process.env.QIMAH_TEAM_ROLE_ID || "1345211405556514906";
 
 export const EMPTY_TIMEOUT_MS = 30 * 1000; // 30 seconds before deleting empty VC
 export const DELETE_DELAY_MS = 20 * 1000; // 20 seconds after completion
