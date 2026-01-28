@@ -5,3 +5,9 @@ study_sessions.log
 data/backups/
 data/session_state.json
 data/study_stats.json
+data/sessions.db
+data/sessions.db-shm
+data/sessions.db-wal
+data/*.db
+data/*.db-shm
+data/*.db-wal
