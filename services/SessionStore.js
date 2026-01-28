@@ -59,7 +59,9 @@ class SessionStore {
         finished INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL,
         last_activity INTEGER NOT NULL,
-        expires_at INTEGER NOT NULL
+        expires_at INTEGER NOT NULL,
+        question_start_time INTEGER,
+        question_timer_secs INTEGER
       );
 
       CREATE INDEX IF NOT EXISTS idx_sessions_user_guild
@@ -71,6 +73,27 @@ class SessionStore {
       CREATE INDEX IF NOT EXISTS idx_sessions_finished
         ON quiz_sessions(finished, expires_at);
     `);
+
+    // Migrate existing databases: add timer columns if they don't exist
+    this._migrateTimerColumns();
+  }
+
+  /**
+   * Add timer columns to existing databases
+   */
+  _migrateTimerColumns() {
+    try {
+      this.db.exec(`ALTER TABLE quiz_sessions ADD COLUMN question_start_time INTEGER`);
+      logger.info('Migrated: added question_start_time column');
+    } catch (e) {
+      // Column already exists, ignore
+    }
+    try {
+      this.db.exec(`ALTER TABLE quiz_sessions ADD COLUMN question_timer_secs INTEGER`);
+      logger.info('Migrated: added question_timer_secs column');
+    } catch (e) {
+      // Column already exists, ignore
+    }
   }
 
   /**
@@ -81,8 +104,9 @@ class SessionStore {
       INSERT OR REPLACE INTO quiz_sessions (
         sid, user_id, guild_id, channel_id, mode, items,
         current_index, score, answers, chapter, finished,
-        created_at, last_activity, expires_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        created_at, last_activity, expires_at,
+        question_start_time, question_timer_secs
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const expiresAt = session.createdAt + (CONFIG.SESSION_TTL_MS || 86400000); // Default 24h
@@ -101,7 +125,9 @@ class SessionStore {
       session.finished ? 1 : 0,
       session.createdAt,
       session.lastActivity,
-      expiresAt
+      expiresAt,
+      session.questionStartTime || null,
+      session.questionTimerSecs || null
     );
 
     logger.debug('Session saved to DB', { sid: session.sid });
@@ -129,6 +155,14 @@ class SessionStore {
     if (updates.finished !== undefined) {
       fields.push('finished = ?');
       values.push(updates.finished ? 1 : 0);
+    }
+    if (updates.questionStartTime !== undefined) {
+      fields.push('question_start_time = ?');
+      values.push(updates.questionStartTime);
+    }
+    if (updates.questionTimerSecs !== undefined) {
+      fields.push('question_timer_secs = ?');
+      values.push(updates.questionTimerSecs);
     }
 
     fields.push('last_activity = ?');
@@ -177,7 +211,9 @@ class SessionStore {
       chapter: row.chapter,
       finished: row.finished === 1,
       createdAt: row.created_at,
-      lastActivity: row.last_activity
+      lastActivity: row.last_activity,
+      questionStartTime: row.question_start_time,
+      questionTimerSecs: row.question_timer_secs
     }));
   }
 
@@ -203,7 +239,9 @@ class SessionStore {
       chapter: row.chapter,
       finished: row.finished === 1,
       createdAt: row.created_at,
-      lastActivity: row.last_activity
+      lastActivity: row.last_activity,
+      questionStartTime: row.question_start_time,
+      questionTimerSecs: row.question_timer_secs
     };
   }
 

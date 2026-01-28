@@ -34,6 +34,7 @@ export class SessionManager {
   /**
    * Load active sessions from database (call on startup)
    * Returns sessions that need to be resumed
+   * Handles expired timers by marking questions as timed out
    */
   loadPersistedSessions() {
     if (!this.persistenceEnabled) {
@@ -42,6 +43,7 @@ export class SessionManager {
 
     try {
       const persistedSessions = sessionStore.loadActiveSessions();
+      const now = Date.now();
 
       for (const sessionData of persistedSessions) {
         // Reconstruct session with timers Map
@@ -50,6 +52,62 @@ export class SessionManager {
           timers: new Map(),
           cleanupTimer: null
         };
+
+        // Handle expired timers: if a timer was running and has expired,
+        // mark the question as timed out and advance to next question
+        if (session.questionStartTime && session.questionTimerSecs) {
+          const elapsedMs = now - session.questionStartTime;
+          const timerMs = session.questionTimerSecs * 1000;
+
+          if (elapsedMs >= timerMs) {
+            // Timer expired during downtime - mark question as timed out
+            const idx = session.index;
+            const mode = session.mode;
+
+            session.answers[idx] = {
+              kind: mode,
+              chosen: null,
+              correct: false,
+              timeout: true,
+              expiredDuringRestart: true
+            };
+
+            // Advance to next question
+            session.index += 1;
+
+            // Clear timer state
+            session.questionStartTime = null;
+            session.questionTimerSecs = null;
+
+            logger.info('Question timed out during restart', {
+              sid: session.sid,
+              questionIndex: idx,
+              elapsedMs,
+              timerMs
+            });
+
+            // Check if quiz is now finished
+            if (session.index >= session.items.length) {
+              session.finished = true;
+            }
+
+            // Persist the updated state
+            sessionStore.updateSession(session.sid, {
+              index: session.index,
+              answers: session.answers,
+              finished: session.finished,
+              questionStartTime: null,
+              questionTimerSecs: null
+            });
+          } else {
+            // Timer still has time left - calculate remaining seconds
+            session.remainingTimerSecs = Math.ceil((timerMs - elapsedMs) / 1000);
+            logger.info('Session has remaining timer', {
+              sid: session.sid,
+              remainingTimerSecs: session.remainingTimerSecs
+            });
+          }
+        }
 
         this.sessions.set(session.sid, session);
 
@@ -66,6 +124,32 @@ export class SessionManager {
       logger.error('Failed to load persisted sessions', { error: error.message });
       return [];
     }
+  }
+
+  /**
+   * Get remaining timer seconds for a session (used by resume handler)
+   * Always recalculates from persisted state to ensure accuracy
+   */
+  getRemainingTimerSecs(sid) {
+    const session = this.sessions.get(sid);
+    if (!session) return null;
+
+    // Clean up cached value from load (we'll recalculate instead)
+    delete session.remainingTimerSecs;
+
+    // Calculate from persisted timer state
+    if (session.questionStartTime && session.questionTimerSecs) {
+      const elapsedMs = Date.now() - session.questionStartTime;
+      const timerMs = session.questionTimerSecs * 1000;
+      const remainingMs = timerMs - elapsedMs;
+      if (remainingMs > 0) {
+        return Math.ceil(remainingMs / 1000);
+      }
+      // Timer expired while user was deciding to resume - will be handled as timeout
+      return null;
+    }
+
+    return null;
   }
 
   /**
@@ -174,10 +258,20 @@ export class SessionManager {
 
     this.clearTimer(sid, questionIndex);
 
+    // Persist timer metadata for recovery
+    session.questionStartTime = Date.now();
+    session.questionTimerSecs = seconds;
+    this._persistTimerState(session);
+
     const timer = setTimeout(async () => {
       // Critical: Check session still exists and isn't finished
       const currentSession = this.sessions.get(sid);
       if (currentSession && !currentSession.finished) {
+        // Clear timer state since timer fired
+        currentSession.questionStartTime = null;
+        currentSession.questionTimerSecs = null;
+        this._persistTimerState(currentSession);
+
         try {
           await onExpire();
         } catch (error) {
@@ -187,6 +281,22 @@ export class SessionManager {
     }, seconds * 1000);
 
     session.timers.set(String(questionIndex), timer);
+  }
+
+  /**
+   * Persist timer state to database
+   */
+  _persistTimerState(session) {
+    if (!this.persistenceEnabled) return;
+
+    try {
+      sessionStore.updateSession(session.sid, {
+        questionStartTime: session.questionStartTime,
+        questionTimerSecs: session.questionTimerSecs
+      });
+    } catch (error) {
+      logger.error('Failed to persist timer state', { sid: session.sid, error: error.message });
+    }
   }
 
   /**
@@ -202,6 +312,11 @@ export class SessionManager {
     if (timer) {
       clearTimeout(timer);
       session.timers.delete(key);
+
+      // Clear persisted timer state
+      session.questionStartTime = null;
+      session.questionTimerSecs = null;
+      this._persistTimerState(session);
     }
   }
 

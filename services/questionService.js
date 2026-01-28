@@ -29,15 +29,28 @@ export async function sendQuestion(channel, session, sessionManager, advance) {
 }
 
 /**
+ * Get timer seconds, using override if set (for resumed sessions)
+ */
+function getTimerSecs(session, defaultSecs) {
+  if (session.timerOverrideSecs) {
+    const override = session.timerOverrideSecs;
+    delete session.timerOverrideSecs; // Clear after use
+    return Math.max(CONFIG.MIN_TIME_SECONDS, override);
+  }
+  return defaultSecs;
+}
+
+/**
  * Send MCQ question
  */
 async function sendMCQQuestion(channel, session, footer, sessionManager, advance) {
   const idx = session.index;
   const q = session.items[idx];
-  const secs = Math.max(
+  const baseSecs = Math.max(
     CONFIG.MIN_TIME_SECONDS,
     q.timeSec ?? CONFIG.TIMERS.MCQ
   );
+  const secs = getTimerSecs(session, baseSecs);
 
   const embed = new EmbedBuilder()
     .setTitle(q.prompt)
@@ -94,10 +107,11 @@ async function sendMCQQuestion(channel, session, footer, sessionManager, advance
 async function sendFinderrorQuestion(channel, session, footer, sessionManager, advance) {
   const idx = session.index;
   const q = session.items[idx];
-  const secs = Math.max(
+  const baseSecs = Math.max(
     CONFIG.MIN_TIME_SECONDS,
     q.timeSec ?? CONFIG.TIMERS.FINDERROR
   );
+  const secs = getTimerSecs(session, baseSecs);
 
   const embed = new EmbedBuilder()
     .setTitle(q.title || "Find the Error")
@@ -142,10 +156,11 @@ async function sendFinderrorQuestion(channel, session, footer, sessionManager, a
 async function sendOutputQuestion(channel, session, footer, sessionManager, advance) {
   const idx = session.index;
   const q = session.items[idx];
-  const secs = Math.max(
+  const baseSecs = Math.max(
     CONFIG.MIN_TIME_SECONDS,
     q.timeSec ?? CONFIG.TIMERS.OUTPUT
   );
+  const secs = getTimerSecs(session, baseSecs);
 
   const embed = new EmbedBuilder()
     .setTitle(q.title || "What is the Output?")
@@ -191,15 +206,21 @@ async function sendCodeQuestion(channel, session, footer, sessionManager, advanc
   const p = session.items[idx];
 
   // Get the timer from question or config
-  let secs;
+  let baseSecs;
 
   if (p.timeSec) {
-    secs = Math.max(CONFIG.MIN_CODE_TIME_SECONDS, p.timeSec);
+    baseSecs = Math.max(CONFIG.MIN_CODE_TIME_SECONDS, p.timeSec);
   } else {
     const configTime = CONFIG.TIMERS.CODE;
     const calculatedTime = Math.round((CONFIG.CODE_TIMEOUT_MS * 4) / 1000);
-    secs = Math.max(CONFIG.MIN_CODE_TIME_SECONDS, configTime || calculatedTime);
+    baseSecs = Math.max(CONFIG.MIN_CODE_TIME_SECONDS, configTime || calculatedTime);
   }
+
+  // Use override if resuming with remaining time, otherwise use base
+  const secs = session.timerOverrideSecs
+    ? Math.max(CONFIG.MIN_CODE_TIME_SECONDS, session.timerOverrideSecs)
+    : baseSecs;
+  delete session.timerOverrideSecs; // Clear after use
 
   const embed = new EmbedBuilder()
     .setTitle(p.title || "Coding Challenge")
