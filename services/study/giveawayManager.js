@@ -1,5 +1,4 @@
 import Discord from "discord.js";
-import { studyStatsStore } from "../StudyStatsStore.js";
 import { logToChannel } from "./utils.js";
 import { STUDY_ROLE_ID, TAMOOH_ROLE_ID } from "./config.js";
 
@@ -8,7 +7,7 @@ const { EmbedBuilder } = Discord;
 /**
  * Run a giveaway based on study session participation
  */
-export async function runGiveaway(message, prizeName) {
+export async function runGiveaway(message, prizeName, studyStatsStore) {
   const guildId = message.guild.id;
 
   try {

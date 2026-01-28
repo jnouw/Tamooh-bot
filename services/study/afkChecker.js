@@ -1,7 +1,16 @@
 import Discord from "discord.js";
-import { studyStatsStore } from "../StudyStatsStore.js";
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = Discord;
+
+// Module-level studyStatsStore reference (set via setStudyStatsStore)
+let studyStatsStore = null;
+
+/**
+ * Set the studyStatsStore reference (called from study.js)
+ */
+export function setStudyStatsStore(store) {
+  studyStatsStore = store;
+}
 
 /**
  * AFK Checker - sends DMs to users after sessions to verify they're not AFK

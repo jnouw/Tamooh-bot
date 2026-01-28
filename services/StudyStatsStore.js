@@ -747,6 +747,3 @@ export class StudyStatsStore {
     };
   }
 }
-
-// Export singleton instance
-export const studyStatsStore = new StudyStatsStore();

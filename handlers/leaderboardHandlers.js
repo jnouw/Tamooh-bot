@@ -1,5 +1,4 @@
 import Discord from "discord.js";
-import { studyStatsStore } from "../services/StudyStatsStore.js";
 import { STUDY_ROLE_ID, TAMOOH_ROLE_ID, OWNER_ID } from "../services/study/config.js";
 
 const { EmbedBuilder } = Discord;
@@ -79,7 +78,7 @@ export async function handleMyStats(interaction, scores) {
 /**
  * Handle study leaderboard command
  */
-export async function handleStudyLeaderboard(interaction) {
+export async function handleStudyLeaderboard(interaction, studyStatsStore) {
   await interaction.deferReply({ ephemeral: false });
 
   const leaderboard = studyStatsStore.getLeaderboard(interaction.guildId, 10);
@@ -158,7 +157,7 @@ export async function handleStudyLeaderboard(interaction) {
 /**
  * Handle violation stats command (admin only)
  */
-export async function handleViolationStats(interaction) {
+export async function handleViolationStats(interaction, studyStatsStore) {
   // Check if user is admin/owner
   if (interaction.user.id !== OWNER_ID && !interaction.member.permissions.has("Administrator")) {
     await interaction.reply({

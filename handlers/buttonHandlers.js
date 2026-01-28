@@ -2,7 +2,7 @@ import Discord from "discord.js";
 import { CONFIG } from "../config.js";
 import { letter } from "../utils/helpers.js";
 import { sendQuestion } from "../services/questionService.js";
-import { advance } from "./quizHandlers.js";
+import { advance } from "./quizFlow.js";
 
 const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ButtonBuilder, ButtonStyle } = Discord;
 
@@ -221,9 +221,84 @@ export async function handleResumeButton(interaction, parts, sessionManager, sco
     });
     return;
   }
+
+  // Check if quiz is finished (e.g., last question timed out during restart)
+  if (session.finished || session.index >= session.items.length) {
+    const channel = await interaction.client.channels.fetch(session.channelId);
+    await interaction.update({
+      content: `✅ Resuming your quiz in ${channel}`,
+      embeds: [],
+      components: [],
+    });
+    // Show summary for finished quiz
+    await advance(channel, session, sessionManager, scores);
+    return;
+  }
+
   const channel = await interaction.client.channels.fetch(session.channelId);
+
+  // Check if a question timed out during bot restart
+  const prevAnswer = session.answers[session.index - 1];
+  const timedOutDuringRestart = prevAnswer?.expiredDuringRestart;
+
+  // Check for remaining timer time (from session recovery)
+  // Returns null if timer was not running or has expired
+  const remainingTimerSecs = sessionManager.getRemainingTimerSecs(sid);
+
+  // Check if timer expired while user was deciding to resume
+  const timerExpiredWhileWaiting = session.questionStartTime && !remainingTimerSecs;
+
+  if (timerExpiredWhileWaiting) {
+    // Mark current question as timed out and advance
+    const idx = session.index;
+    session.answers[idx] = {
+      kind: session.mode,
+      chosen: null,
+      correct: false,
+      timeout: true,
+      expiredWhileWaitingToResume: true
+    };
+    session.index += 1;
+
+    // Clear timer state
+    session.questionStartTime = null;
+    session.questionTimerSecs = null;
+
+    // Persist the changes
+    sessionManager.persistSessionUpdate(session);
+
+    // Check if quiz is now finished
+    if (session.index >= session.items.length) {
+      await interaction.update({
+        content: `⏰ Your question timed out while you were away. Showing your results in ${channel}`,
+        embeds: [],
+        components: [],
+      });
+      await advance(channel, session, sessionManager, scores);
+      return;
+    }
+
+    await interaction.update({
+      content: `⏰ Your question timed out while you were away. Resuming with the next question in ${channel}`,
+      embeds: [],
+      components: [],
+    });
+    await sendQuestion(channel, session, sessionManager, (ch, sess) => advance(ch, sess, sessionManager, scores));
+    return;
+  }
+
+  if (remainingTimerSecs) {
+    // Set override so questionService uses remaining time instead of full timer
+    session.timerOverrideSecs = remainingTimerSecs;
+  }
+
+  let resumeMsg = `✅ Resuming your quiz in ${channel}`;
+  if (timedOutDuringRestart) {
+    resumeMsg = `⏰ A question timed out while the bot was restarting.\n${resumeMsg}`;
+  }
+
   await interaction.update({
-    content: `✅ Resuming your quiz in ${channel}`,
+    content: resumeMsg,
     embeds: [],
     components: [],
   });
