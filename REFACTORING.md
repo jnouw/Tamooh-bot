@@ -21,7 +21,7 @@ This document tracks the architectural refactoring of the qimah-quiz-bot to addr
 | 2 | Consolidate Admin Commands | ✅ Complete |
 | 3 | Add Session Persistence | ✅ Complete |
 | 4 | Fix StudyStatsStore Injection | ✅ Complete |
-| 5 | Move Hardcoded IDs to Config | ⏸️ Deferred |
+| 5 | Move Hardcoded IDs to Config | ✅ Complete |
 
 ---
 
@@ -171,22 +171,33 @@ Converted to dependency injection pattern matching `SessionManager` and `ScoreSt
 
 ---
 
-## Phase 5: Move Hardcoded IDs to Config ⏸️ (Deferred)
+## Phase 5: Move Hardcoded IDs to Config ✅
 
 ### Problem
 Discord IDs hardcoded in `services/study/config.js`.
 
-### Status
-Deferred - may be addressed in a future refactoring cycle.
+### Solution
+Move to environment variables with fallback defaults for backward compatibility.
 
-### Planned Solution (for future implementation)
-Move to environment variables:
+### Changes Made
+
+**Modified: `services/study/config.js`**
+- All Discord IDs now read from `process.env` with fallback to current values
+- Existing deployments continue to work without `.env` changes
+- New deployments can override via environment variables
+
+**Created: `.env.example`**
+- Documents all environment variables
+- Includes new study system configuration options
+
 ```javascript
 // services/study/config.js
-export const STUDY_CHANNEL_ID = process.env.STUDY_CHANNEL_ID;
-export const STUDY_ROLE_ID = process.env.STUDY_ROLE_ID;
-export const TAMOOH_ROLE_ID = process.env.TAMOOH_ROLE_ID;
-export const OWNER_ID = process.env.OWNER_ID;
+export const STUDY_CHANNEL_ID = process.env.STUDY_CHANNEL_ID || "1443362550447341609";
+export const STUDY_LOG_CHANNEL_ID = process.env.STUDY_LOG_CHANNEL_ID || "1443363449504530492";
+export const VOICE_CATEGORY_ID = process.env.VOICE_CATEGORY_ID || "1366787196719468645";
+export const STUDY_ROLE_ID = process.env.STUDY_ROLE_ID || "1443203557628186755";
+export const TAMOOH_ROLE_ID = process.env.TAMOOH_ROLE_ID || "1367043626806542336";
+export const OWNER_ID = process.env.OWNER_ID || "274462470674972682";
 ```
 
 ---
@@ -252,6 +263,11 @@ export const OWNER_ID = process.env.OWNER_ID;
 - [ ] Verify timer resumes with remaining time on resume
 - [ ] Verify expired timers are marked as timed out
 
+### Phase 5 ✅
+- [ ] Verify bot starts with default values (no env vars set)
+- [ ] Verify env vars override defaults when set
+- [ ] Check `.env.example` documents all variables
+
 ---
 
 ## Files Summary
@@ -281,9 +297,10 @@ export const OWNER_ID = process.env.OWNER_ID;
 | `services/study/afkChecker.js` | StudyStatsStore injection |
 | `index.js` | Initialize persistence, instantiate StudyStatsStore |
 
-### Files Pending Modification (Phase 5, Deferred)
-- `services/study/config.js` - Move hardcoded IDs to env vars
-- `.env.example` - Document new variables
+### Files Created (Phase 5)
+| File | Purpose |
+|------|---------|
+| `.env.example` | Environment variable documentation |
 
 ---
 
@@ -306,6 +323,7 @@ Each phase is independent. If issues arise:
 | Quiz recovery on restart | Lost | Recovered |
 | Timer recovery on restart | Lost | Recovered |
 | Singleton dependencies | 1 (StudyStatsStore) | 0 |
+| Hardcoded Discord IDs | 6 | 0 (env configurable) |
 
 ---
 
