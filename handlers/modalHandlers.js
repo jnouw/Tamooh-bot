@@ -4,7 +4,7 @@ import { logger } from "../utils/logger.js";
 import { validateLineNumber, validateOutput, normalizeOutput } from "../utils/helpers.js";
 import { gradeJava } from "../grader/SimpleJavaRunner.js";
 import { sanitizeJavaCode } from "../utils/sanitize.js";
-import { advance } from "./quizHandlers.js";
+import { advance } from "./quizFlow.js";
 
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = Discord;
 

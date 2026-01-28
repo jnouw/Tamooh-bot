@@ -65,6 +65,18 @@ const client = new Client({
 // Init Study With Me system
 setupStudySystem(client);
 
+// Init Quiz Session persistence
+try {
+  await sessionManager.init();
+  const recoveredSessions = sessionManager.loadPersistedSessions();
+  if (recoveredSessions.length > 0) {
+    logger.info('Recovered quiz sessions from previous run', { count: recoveredSessions.length });
+  }
+} catch (error) {
+  logger.error('Failed to initialize SessionManager persistence', { error: error.message });
+  console.error('⚠️  WARNING: Quiz session persistence failed to initialize.');
+}
+
 // Init Section Swap Matchmaking system
 try {
   swapStore.init();

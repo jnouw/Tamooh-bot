@@ -2,7 +2,7 @@ import Discord from "discord.js";
 import { CONFIG } from "../config.js";
 import { letter } from "../utils/helpers.js";
 import { sendQuestion } from "../services/questionService.js";
-import { advance } from "./quizHandlers.js";
+import { advance } from "./quizFlow.js";
 
 const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ButtonBuilder, ButtonStyle } = Discord;
 
