@@ -20,8 +20,8 @@ This document tracks the architectural refactoring of the qimah-quiz-bot to addr
 | 1 | Break Circular Dependency | ✅ Complete |
 | 2 | Consolidate Admin Commands | ✅ Complete |
 | 3 | Add Session Persistence | ✅ Complete |
-| 4 | Fix StudyStatsStore Injection | ⏳ Pending |
-| 5 | Move Hardcoded IDs to Config | ⏳ Pending |
+| 4 | Fix StudyStatsStore Injection | ✅ Complete |
+| 5 | Move Hardcoded IDs to Config | ✅ Complete |
 
 ---
 
@@ -151,60 +151,93 @@ CREATE INDEX idx_sessions_finished ON quiz_sessions(finished, expires_at);
 
 ---
 
-## Phase 4: Fix StudyStatsStore Injection ⏳
+## Phase 4: Fix StudyStatsStore Injection ✅
 
 ### Problem
 `studyStatsStore` exported as singleton, directly imported in 8+ files, preventing testability and guild isolation.
 
-### Planned Solution
-Convert to dependency injection pattern matching `SessionManager` and `ScoreStore`.
+### Solution
+Converted to dependency injection pattern matching `SessionManager` and `ScoreStore`.
 
-### Files to Modify
-- `services/StudyStatsStore.js` - Remove singleton export
-- `index.js` - Instantiate and pass to handlers
-- `handlers/leaderboardHandlers.js` - Accept as parameter
-- `handlers/adminCommandHandlers.js` - Accept as parameter
-- `handlers/tamoohSlashWrappers.js` - Accept as parameter
-- `services/study/study.js` - Accept as parameter
-- `services/study/sessionManager.js` - Accept as parameter
-
-### Implementation Notes
-```javascript
-// services/StudyStatsStore.js
-export class StudyStatsStore { /* unchanged */ }
-// REMOVE: export const studyStatsStore = new StudyStatsStore();
-
-// index.js
-import { StudyStatsStore } from './services/StudyStatsStore.js';
-const studyStatsStore = new StudyStatsStore();
-await studyStatsStore.init();
-
-// Pass to handlers that need it
-await handleTamoohMyStatsCommand(interaction, studyStatsStore);
-```
+### Changes Made
+- `services/StudyStatsStore.js` - Removed singleton export
+- `index.js` - Instantiated StudyStatsStore and pass to handlers
+- `handlers/leaderboardHandlers.js` - Accepts studyStatsStore as parameter
+- `handlers/adminCommandHandlers.js` - Accepts studyStatsStore as parameter
+- `handlers/tamoohSlashWrappers.js` - Accepts studyStatsStore as parameter
+- `services/study/index.js` - Added `setStudyStatsStore()` for late binding
+- `services/study/sessionManager.js` - Uses injected instance
+- `services/study/afkChecker.js` - Uses injected instance
 
 ---
 
-## Phase 5: Move Hardcoded IDs to Config ⏳
+## Phase 5: Move Hardcoded IDs to Config ✅
 
 ### Problem
 Discord IDs hardcoded in `services/study/config.js`.
 
-### Planned Solution
-Move to environment variables.
+### Solution
+Move to environment variables with fallback defaults for backward compatibility.
 
-### Files to Modify
-- `services/study/config.js` - Read from process.env
-- `.env.example` - Document new variables
+### Changes Made
 
-### Implementation Notes
+**Modified: `services/study/config.js`**
+- All Discord IDs now read from `process.env` with fallback to current values
+- Existing deployments continue to work without `.env` changes
+- New deployments can override via environment variables
+
+**Created: `.env.example`**
+- Documents all environment variables
+- Includes new study system configuration options
+
 ```javascript
 // services/study/config.js
-export const STUDY_CHANNEL_ID = process.env.STUDY_CHANNEL_ID;
-export const STUDY_ROLE_ID = process.env.STUDY_ROLE_ID;
-export const TAMOOH_ROLE_ID = process.env.TAMOOH_ROLE_ID;
-export const OWNER_ID = process.env.OWNER_ID;
+export const STUDY_CHANNEL_ID = process.env.STUDY_CHANNEL_ID || "1443362550447341609";
+export const STUDY_LOG_CHANNEL_ID = process.env.STUDY_LOG_CHANNEL_ID || "1443363449504530492";
+export const VOICE_CATEGORY_ID = process.env.VOICE_CATEGORY_ID || "1366787196719468645";
+export const STUDY_ROLE_ID = process.env.STUDY_ROLE_ID || "1443203557628186755";
+export const TAMOOH_ROLE_ID = process.env.TAMOOH_ROLE_ID || "1367043626806542336";
+export const OWNER_ID = process.env.OWNER_ID || "274462470674972682";
+export const QIMAH_TEAM_ROLE_ID = process.env.QIMAH_TEAM_ROLE_ID || "1345211405556514906";
 ```
+
+**Modified: `utils/adminUtils.js`**
+- Removed local `QIMAH_TEAM_ROLE_ID` constant
+- Now imports from `services/study/config.js`
+
+---
+
+## Additional Fixes
+
+### Timer Persistence for Session Recovery ✅
+
+**Problem:** When sessions were recovered after bot restart, `loadPersistedSessions` reconstructed them with empty timer Maps. No timeout callbacks were scheduled, allowing users to answer timed questions after the configured limit.
+
+**Solution:** Added timer state persistence to SessionStore.
+
+**Changes Made:**
+
+**Modified: `services/SessionStore.js`**
+- Added `question_start_time` and `question_timer_secs` columns
+- Added migration for existing databases
+- Updated save/load/update methods to include timer state
+
+**Modified: `services/SessionManager.js`**
+- `startTimer()` - Persists timer metadata (start time + duration)
+- `clearTimer()` - Clears persisted timer state
+- `loadPersistedSessions()` - Handles expired timers on recovery
+- Added `getRemainingTimerSecs()` - Calculates remaining time
+- Added `_persistTimerState()` - Helper for persistence
+
+**Modified: `services/questionService.js`**
+- Added `getTimerSecs()` helper to use timer override if set
+- All question types support `timerOverrideSecs` for resumed sessions
+
+**Modified: `handlers/buttonHandlers.js`**
+- `handleResumeButton()` handles three scenarios:
+  1. Timer expired during restart → marks question as timed out
+  2. Timer expired while waiting to resume → marks as timed out
+  3. Timer still active → resumes with remaining time
 
 ---
 
@@ -225,14 +258,20 @@ export const OWNER_ID = process.env.OWNER_ID;
 - [ ] Verify session recovers and quiz can continue
 - [ ] Check `data/sessions.db` contains session data
 
-### Phase 4 (After Implementation)
+### Phase 4 ✅
 - [ ] Run all study commands
 - [ ] Verify leaderboards work
 - [ ] Verify admin commands work
 
-### Phase 5 (After Implementation)
-- [ ] Verify bot starts with env vars set
-- [ ] Verify error on missing required env vars
+### Timer Persistence ✅
+- [ ] Start a quiz, restart bot mid-question with active timer
+- [ ] Verify timer resumes with remaining time on resume
+- [ ] Verify expired timers are marked as timed out
+
+### Phase 5 ✅
+- [ ] Verify bot starts with default values (no env vars set)
+- [ ] Verify env vars override defaults when set
+- [ ] Check `.env.example` documents all variables
 
 ---
 
@@ -246,24 +285,27 @@ export const OWNER_ID = process.env.OWNER_ID;
 | `utils/statsEmbedBuilder.js` | Discord embed builders |
 | `services/SessionStore.js` | SQLite session persistence |
 
-### Files Modified (6)
+### Files Modified (12)
 | File | Changes |
 |------|---------|
 | `handlers/quizHandlers.js` | Import from quizFlow.js |
-| `handlers/buttonHandlers.js` | Import from quizFlow.js |
+| `handlers/buttonHandlers.js` | Import from quizFlow.js, timer resume handling |
 | `handlers/modalHandlers.js` | Import from quizFlow.js |
-| `handlers/adminCommandHandlers.js` | Use shared utilities (-55% lines) |
-| `handlers/tamoohSlashWrappers.js` | Use shared utilities (-70% lines) |
-| `services/SessionManager.js` | Add persistence integration |
-| `index.js` | Initialize SessionManager persistence |
+| `handlers/adminCommandHandlers.js` | Use shared utilities (-55% lines), DI |
+| `handlers/tamoohSlashWrappers.js` | Use shared utilities (-70% lines), DI |
+| `handlers/leaderboardHandlers.js` | StudyStatsStore dependency injection |
+| `services/SessionManager.js` | Persistence, timer state management |
+| `services/SessionStore.js` | Timer columns for persistence |
+| `services/StudyStatsStore.js` | Removed singleton export |
+| `services/questionService.js` | Timer override support |
+| `services/study/sessionManager.js` | StudyStatsStore injection |
+| `services/study/afkChecker.js` | StudyStatsStore injection |
+| `index.js` | Initialize persistence, instantiate StudyStatsStore |
 
-### Files Pending Modification (7)
-- `services/StudyStatsStore.js`
-- `handlers/leaderboardHandlers.js`
-- `services/study/study.js`
-- `services/study/sessionManager.js`
-- `services/study/config.js`
-- `.env.example`
+### Files Created (Phase 5)
+| File | Purpose |
+|------|---------|
+| `.env.example` | Environment variable documentation |
 
 ---
 
@@ -284,6 +326,9 @@ Each phase is independent. If issues arise:
 | Circular dependencies | 1 | 0 |
 | Session persistence | None | SQLite |
 | Quiz recovery on restart | Lost | Recovered |
+| Timer recovery on restart | Lost | Recovered |
+| Singleton dependencies | 1 (StudyStatsStore) | 0 |
+| Hardcoded Discord IDs | 7 | 0 (env configurable) |
 
 ---
 

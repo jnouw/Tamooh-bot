@@ -1,6 +1,4 @@
-import { OWNER_ID } from "../services/study/config.js";
-
-export const QIMAH_TEAM_ROLE_ID = "1345211405556514906";
+import { OWNER_ID, QIMAH_TEAM_ROLE_ID } from "../services/study/config.js";
 
 /**
  * Check if user is admin, owner, or has Qimah team role
