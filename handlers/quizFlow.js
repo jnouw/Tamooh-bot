@@ -10,6 +10,7 @@ const { EmbedBuilder } = Discord;
  */
 export async function advance(channel, session, sessionManager, scores) {
   session.index += 1;
+  sessionManager.persistSessionUpdate(session);
 
   if (session.index >= session.items.length) {
     session.finished = true;
