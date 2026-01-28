@@ -208,6 +208,22 @@ const commands = [
             .setDescription('Purge expired requests and matches')
         )
     )
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName('verify-setup')
+    .setDescription('Post the verification embed (Admin only)')
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName('verify-check')
+    .setDescription('Check if a user is verified')
+    .addUserOption(option =>
+      option
+        .setName('user')
+        .setDescription('User to check (defaults to yourself)')
+        .setRequired(false)
+    )
     .toJSON()
 ];
 

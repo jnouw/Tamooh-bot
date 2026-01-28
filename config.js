@@ -54,6 +54,46 @@ export const CONFIG = {
   HEALTH_CHECK_INTERVAL_MS: 60000,  // 1 minute
   LOG_STATS: true,                   // Log periodic statistics
 
+  // Verification System
+  VERIFY: {
+    // Role assigned when user verifies
+    ROLE_ID: process.env.VERIFIED_ROLE_ID || null,
+
+    // Channel where verify embed is posted (optional, can use any channel)
+    CHANNEL_ID: process.env.VERIFY_CHANNEL_ID || null,
+
+    // Channel to log new member applications
+    APPLICATION_LOG_CHANNEL_ID: process.env.APPLICATION_LOG_CHANNEL_ID || null,
+
+    // Channel to log successful verifications
+    VERIFICATION_LOG_CHANNEL_ID: process.env.VERIFICATION_LOG_CHANNEL_ID || null,
+
+    // OAuth URL for Qimah members (optional - remove button if not set)
+    OAUTH_URL: process.env.VERIFY_OAUTH_URL || null,
+
+    // n8n webhook URL for sending verification emails
+    EMAIL_WEBHOOK_URL: process.env.VERIFY_EMAIL_WEBHOOK_URL || null,
+
+    // Allowed university email domains
+    ALLOWED_EMAIL_DOMAINS: (process.env.VERIFY_ALLOWED_DOMAINS || 'stu.ksu.edu.sa').split(',').map(d => d.trim()),
+
+    // Verification code expiry (minutes)
+    CODE_EXPIRY_MINUTES: 15,
+
+    // Rate limiting: max verification attempts per hour
+    MAX_ATTEMPTS_PER_HOUR: 3,
+
+    // Embed customization
+    EMBED_TITLE: '🔐 التحقق من الحساب',
+    EMBED_DESCRIPTION: 'للوصول إلى السيرفر، يجب التحقق من أنك طالب جامعي.\nVerify your university email to access the server.',
+    EMBED_COLOR: 0x1E6649,  // Qimah green
+
+    // Button labels
+    BUTTON_EMAIL: '📧 التحقق بالإيميل الجامعي',
+    BUTTON_QIMAH: '🔗 أنا عضو في Qimah',
+    BUTTON_ENTER_CODE: '🔢 إدخال الكود',
+  },
+
   // Section Swap Matchmaking
   SWAP: {
     // Required: Channel ID where match threads will be created
