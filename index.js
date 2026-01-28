@@ -13,7 +13,7 @@ import { CONFIG } from "./config.js";
 import { logger } from "./utils/logger.js";
 import { ScoreStore } from "./services/ScoreStore.js";
 import { setupStudySystem, handleStudyStart, handleTopicSubmit, handleFindGroups, handleJoinDirect, handleShowStats, handleRoleAdd, handleRoleRemove, handleStudyGroupJoin, recoverSessions } from "./services/study.js";
-import { studyStatsStore } from "./services/StudyStatsStore.js";
+import { StudyStatsStore } from "./services/StudyStatsStore.js";
 import { handleQuizStart } from "./handlers/quizHandlers.js";
 import { handleLeaderboard, handleMyStats, handleStudyLeaderboard, handleHelpCommand } from "./handlers/leaderboardHandlers.js";
 import { handleViolationsCommand, handleResetPeriodCommand, handleInsightsCommand } from "./handlers/adminCommandHandlers.js";
@@ -48,6 +48,7 @@ import {
 const questionLoader = new QuestionLoader();
 const sessionManager = new SessionManager();
 const scores = new ScoreStore();
+const studyStatsStore = new StudyStatsStore();
 
 // Initialize Discord client
 const client = new Client({
@@ -63,7 +64,7 @@ const client = new Client({
 });
 
 // Init Study With Me system
-setupStudySystem(client);
+setupStudySystem(client, studyStatsStore);
 
 // Init Quiz Session persistence
 try {
@@ -208,17 +209,17 @@ async function handleSlashCommand(interaction) {
       await handleMyStats(interaction, scores);
     }
   } else if (interaction.commandName === "study_leaderboard") {
-    await handleStudyLeaderboard(interaction);
+    await handleStudyLeaderboard(interaction, studyStatsStore);
   } else if (interaction.commandName === "tamooh") {
     const subcommand = interaction.options.getSubcommand();
     if (subcommand === "mystats") {
-      await handleTamoohMyStatsCommand(interaction);
+      await handleTamoohMyStatsCommand(interaction, studyStatsStore);
     } else if (subcommand === "insights") {
-      await handleTamoohInsightsCommand(interaction);
+      await handleTamoohInsightsCommand(interaction, studyStatsStore);
     } else if (subcommand === "violations") {
-      await handleTamoohViolationsCommand(interaction);
+      await handleTamoohViolationsCommand(interaction, studyStatsStore);
     } else if (subcommand === "reset-period") {
-      await handleTamoohResetPeriodCommand(interaction);
+      await handleTamoohResetPeriodCommand(interaction, studyStatsStore);
     }
   } else if (interaction.commandName === "help") {
     await handleHelpCommand(interaction);
@@ -283,11 +284,11 @@ client.on("messageCreate", async (message) => {
 
   try {
     if (command === "violations") {
-      await handleViolationsCommand(message);
+      await handleViolationsCommand(message, studyStatsStore);
     } else if (command === "reset_period") {
-      await handleResetPeriodCommand(message);
+      await handleResetPeriodCommand(message, studyStatsStore);
     } else if (command === "insights") {
-      await handleInsightsCommand(message);
+      await handleInsightsCommand(message, studyStatsStore);
     }
   } catch (error) {
     logger.error("Message command error", {
@@ -320,7 +321,7 @@ async function handleButton(interaction) {
     return await handleJoinDirect(interaction, vcId);
   }
   if (customId === "study_stats") {
-    return await handleShowStats(interaction);
+    return await handleShowStats(interaction, studyStatsStore);
   }
   if (customId === "study_role_add") {
     return await handleRoleAdd(interaction);

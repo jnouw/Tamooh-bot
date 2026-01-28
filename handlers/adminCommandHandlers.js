@@ -1,4 +1,3 @@
-import { studyStatsStore } from "../services/StudyStatsStore.js";
 import { STUDY_ROLE_ID, TAMOOH_ROLE_ID } from "../services/study/config.js";
 import { isAdmin } from "../utils/adminUtils.js";
 import {
@@ -11,7 +10,7 @@ import {
 /**
  * Handle !violations command - show AFK and gaming violation stats
  */
-export async function handleViolationsCommand(message) {
+export async function handleViolationsCommand(message, studyStatsStore) {
   if (!isAdmin({ author: message.author, member: message.member })) {
     await message.reply("❌ This command is only available to administrators.");
     return;
@@ -33,7 +32,7 @@ export async function handleViolationsCommand(message) {
 /**
  * Handle !reset_period command - reset giveaway period for soft reset
  */
-export async function handleResetPeriodCommand(message) {
+export async function handleResetPeriodCommand(message, studyStatsStore) {
   if (!isAdmin({ author: message.author, member: message.member })) {
     await message.reply("❌ This command is only available to administrators.");
     return;
@@ -120,7 +119,7 @@ export async function handleResetPeriodCommand(message) {
  * Collect user stats data for embed building
  * Shared between message commands and slash commands
  */
-export async function collectUserStatsData(userId, guildId, guild, member) {
+export async function collectUserStatsData(userId, guildId, guild, member, studyStatsStore) {
   const stats = studyStatsStore.getUserStats(userId, guildId);
   const winStats = studyStatsStore.getUserWinStats(userId, guildId);
   const ranking = studyStatsStore.getUserRanking(userId, guildId);
@@ -181,12 +180,13 @@ export async function collectUserStatsData(userId, guildId, guild, member) {
 /**
  * Show personal stats for a user (called from !insights my)
  */
-async function showUserStats(message) {
+async function showUserStats(message, studyStatsStore) {
   const data = await collectUserStatsData(
     message.author.id,
     message.guild.id,
     message.guild,
-    message.member
+    message.member,
+    studyStatsStore
   );
 
   const embed = buildUserStatsEmbed(data);
@@ -197,13 +197,13 @@ async function showUserStats(message) {
  * Handle !insights command - show cool server-wide insights
  * Usage: !insights [my|me|stats|mystats]
  */
-export async function handleInsightsCommand(message) {
+export async function handleInsightsCommand(message, studyStatsStore) {
   const args = message.content.trim().split(/\s+/);
   const subcommand = args[1]?.toLowerCase();
 
   // Handle user stats subcommand (!insights my|me|stats|mystats)
   if (subcommand === "my" || subcommand === "me" || subcommand === "stats" || subcommand === "mystats") {
-    await showUserStats(message);
+    await showUserStats(message, studyStatsStore);
     return;
   }
 

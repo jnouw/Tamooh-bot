@@ -1,4 +1,3 @@
-import { studyStatsStore } from "../services/StudyStatsStore.js";
 import { isAdmin } from "../utils/adminUtils.js";
 import { collectUserStatsData } from "./adminCommandHandlers.js";
 import {
@@ -12,14 +11,15 @@ import {
 /**
  * Slash command wrapper for /tamooh mystats
  */
-export async function handleTamoohMyStatsCommand(interaction) {
+export async function handleTamoohMyStatsCommand(interaction, studyStatsStore) {
   await interaction.deferReply({ ephemeral: true });
 
   const data = await collectUserStatsData(
     interaction.user.id,
     interaction.guild.id,
     interaction.guild,
-    interaction.member
+    interaction.member,
+    studyStatsStore
   );
 
   const embed = buildUserStatsEmbed(data);
@@ -29,7 +29,7 @@ export async function handleTamoohMyStatsCommand(interaction) {
 /**
  * Slash command wrapper for /tamooh insights
  */
-export async function handleTamoohInsightsCommand(interaction) {
+export async function handleTamoohInsightsCommand(interaction, studyStatsStore) {
   if (!isAdmin({ user: interaction.user, member: interaction.member })) {
     await interaction.reply({ content: "❌ This command is only available to administrators.", ephemeral: true });
     return;
@@ -51,7 +51,7 @@ export async function handleTamoohInsightsCommand(interaction) {
 /**
  * Slash command wrapper for /tamooh violations
  */
-export async function handleTamoohViolationsCommand(interaction) {
+export async function handleTamoohViolationsCommand(interaction, studyStatsStore) {
   if (!isAdmin({ user: interaction.user, member: interaction.member })) {
     await interaction.reply({ content: "❌ This command is only available to administrators.", ephemeral: true });
     return;
@@ -75,7 +75,7 @@ export async function handleTamoohViolationsCommand(interaction) {
 /**
  * Slash command wrapper for /tamooh reset-period
  */
-export async function handleTamoohResetPeriodCommand(interaction) {
+export async function handleTamoohResetPeriodCommand(interaction, studyStatsStore) {
   if (!isAdmin({ user: interaction.user, member: interaction.member })) {
     await interaction.reply({ content: "❌ This command is only available to administrators.", ephemeral: true });
     return;

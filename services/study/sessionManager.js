@@ -1,5 +1,4 @@
 import Discord from "discord.js";
-import { studyStatsStore } from "../StudyStatsStore.js";
 import { sessionStateStore } from "../SessionStateStore.js";
 import { logToChannel, announceMilestone } from "./utils.js";
 import { DELETE_DELAY_MS } from "./config.js";
@@ -7,6 +6,16 @@ import { setVoiceChannelMute, updateVoiceChannelName, setVoiceChannelStatus } fr
 import { activityTracker } from "./activityTracker.js";
 
 const { EmbedBuilder } = Discord;
+
+// Module-level studyStatsStore reference (set via setStudyStatsStore)
+let studyStatsStore = null;
+
+/**
+ * Set the studyStatsStore reference (called from study.js)
+ */
+export function setStudyStatsStore(store) {
+  studyStatsStore = store;
+}
 
 // Session state
 export const state = {

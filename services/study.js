@@ -1,11 +1,14 @@
 import Discord from "discord.js";
 import { sessionStateStore } from "./SessionStateStore.js";
-import { state, cancelSession } from "./study/sessionManager.js";
-import { studyStatsStore } from "./StudyStatsStore.js";
+import { state, cancelSession, setStudyStatsStore } from "./study/sessionManager.js";
 import { runGiveaway } from "./study/giveawayManager.js";
+import { setStudyStatsStore as setAfkStudyStatsStore } from "./study/afkChecker.js";
 import { EMPTY_TIMEOUT_MS, OWNER_ID } from "./study/config.js";
 
 const { Events, ButtonStyle, EmbedBuilder, ActionRowBuilder, ButtonBuilder } = Discord;
+
+// Module-level studyStatsStore reference (set by setupStudySystem)
+let studyStatsStore = null;
 
 // Re-export study handlers for use in index.js
 export {
@@ -79,7 +82,10 @@ async function cleanupOrphanedChannels(client) {
 /**
  * Setup the study system
  */
-export function setupStudySystem(client) {
+export function setupStudySystem(client, statsStore) {
+  studyStatsStore = statsStore;
+  setStudyStatsStore(statsStore);
+  setAfkStudyStatsStore(statsStore);
   console.log("[Study] Study system loaded");
 
   // Owner command to post control message
@@ -209,7 +215,7 @@ export function setupStudySystem(client) {
       }
 
       const prizeName = args.slice(1).join(" ");
-      await runGiveaway(message, prizeName);
+      await runGiveaway(message, prizeName, studyStatsStore);
     } catch (error) {
       console.error("[Giveaway] Error running giveaway:", error);
       message.reply("❌ Error running giveaway. Check console for details.").catch(() => { });

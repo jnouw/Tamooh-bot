@@ -6,7 +6,6 @@ import Discord, {
   ButtonBuilder,
   ButtonStyle
 } from "discord.js";
-import { studyStatsStore } from "../StudyStatsStore.js";
 import { createSession, startPomodoroTimer, startSuggestiveTimer, findMatchingSession, getActiveSessions } from "./sessionManager.js";
 import { logToChannel, autoAssignStudyRole, getMotivationalMessage } from "./utils.js";
 import {
@@ -223,7 +222,7 @@ export async function handleJoinDirect(interaction, voiceChannelId) {
 /**
  * Handle show stats button click
  */
-export async function handleShowStats(interaction) {
+export async function handleShowStats(interaction, studyStatsStore) {
   await interaction.deferReply({ ephemeral: true });
   await autoAssignStudyRole(interaction.member);
 
