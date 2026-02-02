@@ -123,4 +123,22 @@ export const CONFIG = {
     // Valid campus values
     VALID_CAMPUSES: ['F', 'M'],
   },
+
+  // JTC (Join-to-Create) Voice System
+  JTC: {
+    // Voice channel users join to create their own room
+    CREATOR_CHANNEL_ID: process.env.JTC_CREATOR_CHANNEL_ID || null,
+
+    // Category where JTC rooms will be created
+    CATEGORY_ID: process.env.JTC_CATEGORY_ID || null,
+
+    // Text channel for the control panel (optional)
+    CONTROLS_CHANNEL_ID: process.env.JTC_CONTROLS_CHANNEL_ID || null,
+
+    // Milliseconds before deleting empty room
+    EMPTY_ROOM_TIMEOUT_MS: 30000,
+
+    // Cooldown between button clicks (ms)
+    BUTTON_COOLDOWN_MS: 2000,
+  },
 };

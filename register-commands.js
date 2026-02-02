@@ -224,6 +224,11 @@ const commands = [
         .setDescription('User to check (defaults to yourself)')
         .setRequired(false)
     )
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName('jtcpanel')
+    .setDescription('Post the JTC voice room control panel (Admin only)')
     .toJSON()
 ];
 

@@ -54,6 +54,7 @@ import {
   handleCodeModalSubmit
 } from "./handlers/verifyHandlers.js";
 import { verificationStore } from "./services/VerificationStore.js";
+import { setupJTCSystem, isJTCInteraction, handleJTCInteraction, postJTCControlPanel } from "./services/jtc/index.js";
 
 // Initialize services
 const questionLoader = new QuestionLoader();
@@ -76,6 +77,9 @@ const client = new Client({
 
 // Init Study With Me system
 setupStudySystem(client, studyStatsStore);
+
+// Init JTC (Join-to-Create) voice room system
+setupJTCSystem(client);
 
 // Init Quiz Session persistence
 try {
@@ -169,6 +173,11 @@ function startHealthCheck() {
 
 client.on("interactionCreate", async (interaction) => {
   try {
+    // Handle JTC interactions first (buttons, modals, select menus)
+    if (isJTCInteraction(interaction)) {
+      return await handleJTCInteraction(interaction);
+    }
+
     if (interaction.isChatInputCommand()) {
       await handleSlashCommand(interaction);
     } else if (interaction.isButton()) {
@@ -269,6 +278,18 @@ async function handleSlashCommand(interaction) {
       } else if (subcommand === "help") {
         await handleSwapHelp(interaction);
       }
+    }
+  } else if (interaction.commandName === "jtcpanel") {
+    // Admin-only: Post JTC control panel
+    if (!interaction.memberPermissions?.has("Administrator")) {
+      return interaction.reply({ content: "Admin only.", ephemeral: true });
+    }
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const msg = await postJTCControlPanel(interaction.client, interaction.channelId);
+      await interaction.editReply({ content: `Control panel posted! ID: ${msg.id}` });
+    } catch (error) {
+      await interaction.editReply({ content: `Failed: ${error.message}` });
     }
   }
 }
