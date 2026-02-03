@@ -178,13 +178,16 @@ async function handleUnlockRoom(interaction) {
     }
 
     try {
-        await channel.permissionOverwrites.edit(interaction.guild.id, {
-            Connect: true,
-        });
+        // Delete the @everyone overwrite to inherit category permissions
+        // This avoids bypassing category restrictions (e.g., private categories)
+        const everyoneOverwrite = channel.permissionOverwrites.cache.get(interaction.guild.id);
+        if (everyoneOverwrite) {
+            await everyoneOverwrite.delete('JTC room unlocked');
+        }
         setRoomLocked(room.voiceChannelId, false);
 
         await interaction.reply({
-            content: '> Room unlocked. Anyone can join now.',
+            content: '> Room unlocked. Anyone with category access can join now.',
             ephemeral: true,
         });
     } catch (error) {

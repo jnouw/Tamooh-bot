@@ -351,6 +351,14 @@ export async function handleEmailModalSubmit(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
   try {
+    // Fail early if email webhook is not configured
+    if (!CONFIG.VERIFY.EMAIL_WEBHOOK_URL) {
+      logger.error('EMAIL_WEBHOOK_URL not configured, cannot send verification email');
+      return interaction.editReply({
+        content: '❌ خدمة الإيميل غير مُعدّة. يرجى التواصل مع الإدارة.\nEmail service not configured. Please contact an admin.',
+      });
+    }
+
     // Create pending verification and get code
     const code = verificationStore.createPendingVerification(
       interaction.user.id,
@@ -359,31 +367,27 @@ export async function handleEmailModalSubmit(interaction) {
     );
 
     // Send email via n8n webhook
-    if (CONFIG.VERIFY.EMAIL_WEBHOOK_URL) {
-      const response = await fetch(CONFIG.VERIFY.EMAIL_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          name,
-          code,
-          discord_id: interaction.user.id,
-          discord_username: interaction.user.tag,
-        }),
-      });
+    const response = await fetch(CONFIG.VERIFY.EMAIL_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        name,
+        code,
+        discord_id: interaction.user.id,
+        discord_username: interaction.user.tag,
+      }),
+    });
 
-      if (!response.ok) {
-        logger.error('Failed to send verification email', {
-          status: response.status,
-          discordId: interaction.user.id,
-          email,
-        });
-        return interaction.editReply({
-          content: '❌ فشل إرسال الإيميل. يرجى المحاولة لاحقاً.\nFailed to send email. Please try again later.',
-        });
-      }
-    } else {
-      logger.warn('EMAIL_WEBHOOK_URL not configured, code not sent', { code, discordId: interaction.user.id });
+    if (!response.ok) {
+      logger.error('Failed to send verification email', {
+        status: response.status,
+        discordId: interaction.user.id,
+        email,
+      });
+      return interaction.editReply({
+        content: '❌ فشل إرسال الإيميل. يرجى المحاولة لاحقاً.\nFailed to send email. Please try again later.',
+      });
     }
 
     // Success message with code entry button
