@@ -132,20 +132,29 @@ async function handleJoinCreator(state) {
         const displayName = member.displayName || member.user.username;
         const channelName = `${displayName}'s Room`;
 
+        // Clone category permissions and add owner-specific override
+        // This preserves any role restrictions on the category
+        const permissionOverwrites = [];
+        if (category) {
+            for (const [id, overwrite] of category.permissionOverwrites.cache) {
+                permissionOverwrites.push({
+                    id,
+                    allow: overwrite.allow.bitfield,
+                    deny: overwrite.deny.bitfield,
+                });
+            }
+        }
+        // Add owner permission (always allowed to connect even if room is locked)
+        permissionOverwrites.push({
+            id: userId,
+            allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.ManageChannels],
+        });
+
         const voiceChannel = await guild.channels.create({
             name: channelName.slice(0, 100),
             type: ChannelType.GuildVoice,
             parent: CONFIG.JTC.CATEGORY_ID,
-            permissionOverwrites: [
-                {
-                    id: guild.id,
-                    allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
-                },
-                {
-                    id: userId,
-                    allow: [PermissionFlagsBits.Connect],
-                },
-            ],
+            permissionOverwrites,
         });
 
         logger.info('[JTC] Created room', { channelName, userId });
