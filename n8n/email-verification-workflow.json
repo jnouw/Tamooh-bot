@@ -1,0 +1,207 @@
+{
+  "name": "Discord Email Verification - Send Code",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "send-verification-email",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: Send Email",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "send-verification-email"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-email",
+              "leftValue": "={{ $json.body.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "check-code",
+              "leftValue": "={{ $json.body.code }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-data",
+      "name": "Has Required Data?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@qimah.net",
+        "toEmail": "={{ $json.body.email }}",
+        "subject": "Qimah Discord - رمز التحقق | Verification Code",
+        "emailType": "html",
+        "html": "=<!DOCTYPE html>\n<html dir=\"rtl\" lang=\"ar\">\n<head>\n  <meta charset=\"UTF-8\">\n  <style>\n    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }\n    .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }\n    .header { background: linear-gradient(135deg, #1E6649 0%, #2a8a5f 100%); color: white; padding: 30px; text-align: center; }\n    .header h1 { margin: 0; font-size: 24px; }\n    .content { padding: 30px; }\n    .code-box { background: #f0f7f4; border: 2px dashed #1E6649; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }\n    .code { font-size: 36px; font-weight: bold; color: #1E6649; letter-spacing: 8px; font-family: monospace; }\n    .info { color: #666; font-size: 14px; margin-top: 20px; }\n    .footer { background: #f9f9f9; padding: 20px; text-align: center; color: #999; font-size: 12px; }\n    .bilingual { margin: 15px 0; }\n    .ar { font-size: 16px; margin-bottom: 8px; }\n    .en { font-size: 14px; color: #666; direction: ltr; }\n  </style>\n</head>\n<body>\n  <div class=\"container\">\n    <div class=\"header\">\n      <h1>Qimah Discord</h1>\n    </div>\n    <div class=\"content\">\n      <div class=\"bilingual\">\n        <p class=\"ar\">مرحباً {{ $json.body.name }}،</p>\n        <p class=\"en\">Hello {{ $json.body.name }},</p>\n      </div>\n      \n      <div class=\"bilingual\">\n        <p class=\"ar\">استخدم الرمز التالي للتحقق من حسابك في سيرفر Qimah على Discord:</p>\n        <p class=\"en\">Use the following code to verify your account in the Qimah Discord server:</p>\n      </div>\n      \n      <div class=\"code-box\">\n        <div class=\"code\">{{ $json.body.code }}</div>\n      </div>\n      \n      <div class=\"bilingual\">\n        <p class=\"ar\">⏰ هذا الرمز صالح لمدة 15 دقيقة فقط.</p>\n        <p class=\"en\">⏰ This code is valid for 15 minutes only.</p>\n      </div>\n      \n      <div class=\"info bilingual\">\n        <p class=\"ar\">إذا لم تطلب هذا الرمز، يمكنك تجاهل هذه الرسالة.</p>\n        <p class=\"en\">If you didn't request this code, you can ignore this email.</p>\n      </div>\n    </div>\n    <div class=\"footer\">\n      <p>Qimah - مجتمع طلاب الحاسب</p>\n      <p>Discord: {{ $json.body.discord_username }}</p>\n    </div>\n  </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Verification Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [680, 200],
+      "credentials": {
+        "smtp": {
+          "id": "REPLACE_WITH_SMTP_CREDENTIAL_ID",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "success"
+            },
+            {
+              "name": "message",
+              "value": "=Verification email sent to {{ $json.body.email }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "success-response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "error"
+            },
+            {
+              "name": "message",
+              "value": "Missing required fields (email or code)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "error-response",
+      "name": "Error: Missing Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": "={{ $json.status === 'success' ? 200 : 400 }}"
+        }
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Webhook: Send Email": {
+      "main": [
+        [
+          {
+            "node": "Has Required Data?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Required Data?": {
+      "main": [
+        [
+          {
+            "node": "Send Verification Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error: Missing Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Verification Email": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Success Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error: Missing Data": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

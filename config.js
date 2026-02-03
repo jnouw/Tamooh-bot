@@ -54,6 +54,46 @@ export const CONFIG = {
   HEALTH_CHECK_INTERVAL_MS: 60000,  // 1 minute
   LOG_STATS: true,                   // Log periodic statistics
 
+  // Verification System
+  VERIFY: {
+    // Role assigned when user verifies
+    ROLE_ID: process.env.VERIFIED_ROLE_ID || null,
+
+    // Channel where verify embed is posted (optional, can use any channel)
+    CHANNEL_ID: process.env.VERIFY_CHANNEL_ID || null,
+
+    // Channel to log new member applications
+    APPLICATION_LOG_CHANNEL_ID: process.env.APPLICATION_LOG_CHANNEL_ID || null,
+
+    // Channel to log successful verifications
+    VERIFICATION_LOG_CHANNEL_ID: process.env.VERIFICATION_LOG_CHANNEL_ID || null,
+
+    // OAuth URL for Qimah members (optional - remove button if not set)
+    OAUTH_URL: process.env.VERIFY_OAUTH_URL || null,
+
+    // n8n webhook URL for sending verification emails
+    EMAIL_WEBHOOK_URL: process.env.VERIFY_EMAIL_WEBHOOK_URL || null,
+
+    // Allowed university email domains
+    ALLOWED_EMAIL_DOMAINS: (process.env.VERIFY_ALLOWED_DOMAINS || 'stu.ksu.edu.sa').split(',').map(d => d.trim()),
+
+    // Verification code expiry (minutes)
+    CODE_EXPIRY_MINUTES: 15,
+
+    // Rate limiting: max verification attempts per hour
+    MAX_ATTEMPTS_PER_HOUR: 3,
+
+    // Embed customization
+    EMBED_TITLE: '🔐 التحقق من الحساب',
+    EMBED_DESCRIPTION: 'للوصول إلى السيرفر، يجب التحقق من أنك طالب جامعي.\nVerify your university email to access the server.',
+    EMBED_COLOR: 0x1E6649,  // Qimah green
+
+    // Button labels
+    BUTTON_EMAIL: '📧 التحقق بالإيميل الجامعي',
+    BUTTON_QIMAH: '🔗 أنا عضو في Qimah',
+    BUTTON_ENTER_CODE: '🔢 إدخال الكود',
+  },
+
   // Section Swap Matchmaking
   SWAP: {
     // Required: Channel ID where match threads will be created
@@ -82,5 +122,23 @@ export const CONFIG = {
 
     // Valid campus values
     VALID_CAMPUSES: ['F', 'M'],
+  },
+
+  // JTC (Join-to-Create) Voice System
+  JTC: {
+    // Voice channel users join to create their own room
+    CREATOR_CHANNEL_ID: process.env.JTC_CREATOR_CHANNEL_ID || null,
+
+    // Category where JTC rooms will be created
+    CATEGORY_ID: process.env.JTC_CATEGORY_ID || null,
+
+    // Text channel for the control panel (optional)
+    CONTROLS_CHANNEL_ID: process.env.JTC_CONTROLS_CHANNEL_ID || null,
+
+    // Milliseconds before deleting empty room
+    EMPTY_ROOM_TIMEOUT_MS: 30000,
+
+    // Cooldown between button clicks (ms)
+    BUTTON_COOLDOWN_MS: 2000,
   },
 };

@@ -43,6 +43,18 @@ import {
   handleOutputSubmission,
   handleCodeSubmission
 } from "./handlers/modalHandlers.js";
+import {
+  handleVerifySetup,
+  handleVerifyCheck,
+  logMemberApplication,
+  logScreeningPass,
+  handleVerifyEmailButton,
+  handleEmailModalSubmit,
+  handleEnterCodeButton,
+  handleCodeModalSubmit
+} from "./handlers/verifyHandlers.js";
+import { verificationStore } from "./services/VerificationStore.js";
+import { setupJTCSystem, isJTCInteraction, handleJTCInteraction, postJTCControlPanel } from "./services/jtc/index.js";
 
 // Initialize services
 const questionLoader = new QuestionLoader();
@@ -66,6 +78,9 @@ const client = new Client({
 // Init Study With Me system
 setupStudySystem(client, studyStatsStore);
 
+// Init JTC (Join-to-Create) voice room system
+setupJTCSystem(client);
+
 // Init Quiz Session persistence
 try {
   await sessionManager.init();
@@ -84,6 +99,15 @@ try {
 } catch (error) {
   logger.error('Failed to initialize SwapStore', { error: error.message });
   console.error('⚠️  WARNING: Section swap system failed to initialize.');
+}
+
+// Init Verification system
+try {
+  verificationStore.init();
+  logger.info('Verification system initialized');
+} catch (error) {
+  logger.error('Failed to initialize VerificationStore', { error: error.message });
+  console.error('⚠️  WARNING: Verification system failed to initialize.');
 }
 
 // Check Java availability on startup
@@ -149,6 +173,11 @@ function startHealthCheck() {
 
 client.on("interactionCreate", async (interaction) => {
   try {
+    // Handle JTC interactions first (buttons, modals, select menus)
+    if (isJTCInteraction(interaction)) {
+      return await handleJTCInteraction(interaction);
+    }
+
     if (interaction.isChatInputCommand()) {
       await handleSlashCommand(interaction);
     } else if (interaction.isButton()) {
@@ -223,6 +252,10 @@ async function handleSlashCommand(interaction) {
     }
   } else if (interaction.commandName === "help") {
     await handleHelpCommand(interaction);
+  } else if (interaction.commandName === "verify-setup") {
+    await handleVerifySetup(interaction);
+  } else if (interaction.commandName === "verify-check") {
+    await handleVerifyCheck(interaction);
   } else if (interaction.commandName === "swap") {
     const subcommandGroup = interaction.options.getSubcommandGroup(false);
     const subcommand = interaction.options.getSubcommand();
@@ -245,6 +278,18 @@ async function handleSlashCommand(interaction) {
       } else if (subcommand === "help") {
         await handleSwapHelp(interaction);
       }
+    }
+  } else if (interaction.commandName === "jtcpanel") {
+    // Admin-only: Post JTC control panel
+    if (!interaction.memberPermissions?.has("Administrator")) {
+      return interaction.reply({ content: "Admin only.", ephemeral: true });
+    }
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const msg = await postJTCControlPanel(interaction.client, interaction.channelId);
+      await interaction.editReply({ content: `Control panel posted! ID: ${msg.id}` });
+    } catch (error) {
+      await interaction.editReply({ content: `Failed: ${error.message}` });
     }
   }
 }
@@ -333,6 +378,14 @@ async function handleButton(interaction) {
     return await handleStudyGroupJoin(interaction);
   }
 
+  // Verification system buttons
+  if (customId === "verify_email") {
+    return await handleVerifyEmailButton(interaction);
+  }
+  if (customId === "verify_enter_code") {
+    return await handleEnterCodeButton(interaction);
+  }
+
   // Quiz buttons (have session IDs)
   const parts = customId.split(":");
   const kind = parts[0];
@@ -394,8 +447,16 @@ async function handleModalSubmit(interaction) {
     const mode = parts[1];
     const duration = parts[2] === 'null' ? null : parseInt(parts[2]);
     const topic = interaction.fields.getTextInputValue("topic");
-    
+
     return await handleTopicSubmit(interaction, interaction.client, mode, duration, topic);
+  }
+
+  // Verification modals
+  if (interaction.customId === "verify_email_modal") {
+    return await handleEmailModalSubmit(interaction);
+  }
+  if (interaction.customId === "verify_code_modal") {
+    return await handleCodeModalSubmit(interaction);
   }
 
   const sid = parts[1];
@@ -423,6 +484,27 @@ async function handleModalSubmit(interaction) {
   }
 }
 
+// Member join logging for verification system
+client.on("guildMemberAdd", async (member) => {
+  // Only log for Qimah guild if configured
+  if (process.env.QIMAH_GUILD_ID && member.guild.id !== process.env.QIMAH_GUILD_ID) {
+    return;
+  }
+  await logMemberApplication(member);
+});
+
+// Membership screening pass logging
+client.on("guildMemberUpdate", async (oldMember, newMember) => {
+  // Only log for Qimah guild if configured
+  if (process.env.QIMAH_GUILD_ID && newMember.guild.id !== process.env.QIMAH_GUILD_ID) {
+    return;
+  }
+  // Check if user just passed membership screening
+  if (oldMember.pending && !newMember.pending) {
+    await logScreeningPass(newMember);
+  }
+});
+
 // Graceful shutdown
 process.on("SIGTERM", async () => {
   logger.info("SIGTERM received, cleaning up...");
@@ -434,6 +516,7 @@ process.on("SIGTERM", async () => {
   sessionManager.cleanup();
   swapCoordinator.stop();
   swapStore.close();
+  verificationStore.close();
   client.destroy();
   process.exit(0);
 });
@@ -448,6 +531,7 @@ process.on("SIGINT", async () => {
   sessionManager.cleanup();
   swapCoordinator.stop();
   swapStore.close();
+  verificationStore.close();
   client.destroy();
   process.exit(0);
 });
