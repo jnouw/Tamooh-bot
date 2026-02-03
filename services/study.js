@@ -3,7 +3,7 @@ import { sessionStateStore } from "./SessionStateStore.js";
 import { state, cancelSession, setStudyStatsStore } from "./study/sessionManager.js";
 import { runGiveaway } from "./study/giveawayManager.js";
 import { setStudyStatsStore as setAfkStudyStatsStore } from "./study/afkChecker.js";
-import { EMPTY_TIMEOUT_MS, OWNER_ID } from "./study/config.js";
+import { EMPTY_TIMEOUT_MS, OWNER_ID, QIMAH_TEAM_ROLE_ID } from "./study/config.js";
 
 const { Events, ButtonStyle, EmbedBuilder, ActionRowBuilder, ButtonBuilder } = Discord;
 
@@ -88,11 +88,11 @@ export function setupStudySystem(client, statsStore) {
   setAfkStudyStatsStore(statsStore);
   console.log("[Study] Study system loaded");
 
-  // Owner command to post control message
+  // Command to post control message (Qimah Team only)
   client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
-    if (message.author.id !== OWNER_ID) return;
     if (message.content.trim() !== "!initstudy") return;
+    if (!message.member?.roles?.cache?.has(QIMAH_TEAM_ROLE_ID)) return;
 
     try {
       const embed = new EmbedBuilder()
