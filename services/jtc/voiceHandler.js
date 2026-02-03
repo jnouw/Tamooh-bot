@@ -83,14 +83,26 @@ async function handleJoinCreator(state) {
     if (hasRoom(userId)) {
         const existingRoom = getRoomByOwner(userId);
         if (existingRoom) {
-            try {
-                await member.voice.setChannel(existingRoom.voiceChannelId);
-                cancelEmptyTimeout(existingRoom.voiceChannelId);
-                logger.info('[JTC] Moved user to existing room', { userId, channelId: existingRoom.voiceChannelId });
-            } catch (error) {
-                logger.error('[JTC] Failed to move user to existing room', { error: error.message });
+            // Verify the channel still exists before trying to move user
+            const existingChannel = guild.channels.cache.get(existingRoom.voiceChannelId);
+            if (existingChannel) {
+                try {
+                    await member.voice.setChannel(existingRoom.voiceChannelId);
+                    cancelEmptyTimeout(existingRoom.voiceChannelId);
+                    logger.info('[JTC] Moved user to existing room', { userId, channelId: existingRoom.voiceChannelId });
+                    return;
+                } catch (error) {
+                    logger.error('[JTC] Failed to move user to existing room', { error: error.message });
+                    // Channel may have been deleted, clean up stale entry
+                    deleteRoom(existingRoom.voiceChannelId);
+                    logger.info('[JTC] Cleaned up stale room entry', { userId, channelId: existingRoom.voiceChannelId });
+                }
+            } else {
+                // Channel was deleted externally, clean up stale entry
+                deleteRoom(existingRoom.voiceChannelId);
+                logger.info('[JTC] Cleaned up stale room entry (channel not found)', { userId, channelId: existingRoom.voiceChannelId });
             }
-            return;
+            // Continue to create a new room for the user
         }
     }
 

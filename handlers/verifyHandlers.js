@@ -475,6 +475,14 @@ export async function handleCodeModalSubmit(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
   try {
+    // Re-check email uniqueness to prevent race condition
+    // (two users could request codes for same email before either verifies)
+    if (verificationStore.isEmailUsed(result.email, interaction.user.id)) {
+      return interaction.editReply({
+        content: '❌ هذا الإيميل مستخدم من قبل حساب آخر.\nThis email is already used by another account.',
+      });
+    }
+
     // Mark as verified in database
     verificationStore.markVerified(interaction.user.id, result.email, result.name, 'email');
 
