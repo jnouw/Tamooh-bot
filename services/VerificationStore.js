@@ -238,20 +238,20 @@ class VerificationStore {
       return { success: false, error: 'No pending verification found or code has expired.' };
     }
 
-    // Increment attempts
-    this.db.prepare(`
-      UPDATE pending_verifications SET attempts = attempts + 1 WHERE id = ?
-    `).run(pending.id);
-
-    // Check attempts (max 5)
+    // Check attempts first (max 5)
     if (pending.attempts >= 5) {
       this.db.prepare('DELETE FROM pending_verifications WHERE id = ?').run(pending.id);
       return { success: false, error: 'Too many incorrect attempts. Please request a new code.' };
     }
 
-    // Check code
+    // Check code before incrementing attempts
     if (pending.code !== inputCode) {
-      return { success: false, error: `Incorrect code. ${4 - pending.attempts} attempts remaining.` };
+      // Increment attempts only on wrong code
+      this.db.prepare(`
+        UPDATE pending_verifications SET attempts = attempts + 1 WHERE id = ?
+      `).run(pending.id);
+      const remainingAttempts = 4 - pending.attempts;
+      return { success: false, error: `Incorrect code. ${remainingAttempts} attempts remaining.` };
     }
 
     // Success - delete pending and create verified record

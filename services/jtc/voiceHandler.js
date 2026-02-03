@@ -106,7 +106,13 @@ async function handleJoinCreator(state) {
         // Check category capacity
         const category = guild.channels.cache.get(CONFIG.JTC.CATEGORY_ID);
         if (category && category.children.cache.size >= 50) {
-            logger.warn('[JTC] Category full', { userId });
+            logger.warn('[JTC] Category full, disconnecting user', { userId });
+            // Disconnect user since we can't create a room
+            try {
+                await member.voice.disconnect('JTC category full');
+            } catch (disconnectError) {
+                logger.error('[JTC] Failed to disconnect user from full category', { error: disconnectError.message });
+            }
             return;
         }
 
@@ -197,13 +203,17 @@ export async function cleanupOrphanedChannels(client) {
     }
 
     let cleanedCount = 0;
+    let reregisteredCount = 0;
 
     for (const [channelId, channel] of category.children.cache) {
         if (channel.type !== ChannelType.GuildVoice) continue;
         if (channelId === CONFIG.JTC.CREATOR_CHANNEL_ID) continue;
 
-        if (!isJTCRoom(channelId)) {
-            const memberCount = channel.members.filter(m => !m.user.bot).size;
+        // Only consider untracked channels that look like JTC rooms (end with "'s Room")
+        // This prevents accidentally deleting manually-created voice channels
+        if (!isJTCRoom(channelId) && channel.name.endsWith("'s Room")) {
+            const humanMembers = channel.members.filter(m => !m.user.bot);
+            const memberCount = humanMembers.size;
 
             if (memberCount === 0) {
                 try {
@@ -214,12 +224,41 @@ export async function cleanupOrphanedChannels(client) {
                     logger.error('[JTC] Failed to delete orphaned channel', { error: error.message });
                 }
             } else {
-                logger.info('[JTC] Found orphaned channel with members', { channelName: channel.name, memberCount });
+                // Re-register non-empty orphaned rooms so they get properly tracked
+                // Pick first member who doesn't already own a room as the new owner
+                let newOwner = null;
+                for (const [memberId] of humanMembers) {
+                    if (!hasRoom(memberId)) {
+                        newOwner = memberId;
+                        break;
+                    }
+                }
+
+                if (newOwner) {
+                    createRoom({
+                        guildId: channel.guild.id,
+                        ownerId: newOwner,
+                        voiceChannelId: channelId,
+                    });
+                    reregisteredCount++;
+                    logger.info('[JTC] Re-registered orphaned room', {
+                        channelName: channel.name,
+                        newOwnerId: newOwner,
+                        memberCount
+                    });
+                } else {
+                    // All members already own rooms - just log it
+                    // Room will become a true orphan when they all leave
+                    logger.warn('[JTC] Orphaned room with no adoptable owner', {
+                        channelName: channel.name,
+                        memberCount
+                    });
+                }
             }
         }
     }
 
-    if (cleanedCount > 0) {
-        logger.info('[JTC] Cleaned up orphaned channels', { count: cleanedCount });
+    if (cleanedCount > 0 || reregisteredCount > 0) {
+        logger.info('[JTC] Orphan cleanup complete', { deleted: cleanedCount, reregistered: reregisteredCount });
     }
 }
