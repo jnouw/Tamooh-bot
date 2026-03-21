@@ -109,7 +109,7 @@ async function sendWeeklySummaryAndReset(client, studyStatsStore) {
       }
 
       // Reset the giveaway period for this guild
-      studyStatsStore.resetPeriod(guildId);
+      await studyStatsStore.resetGiveawayPeriod(guildId);
     } catch (err) {
       console.error(`[WeeklyReset] Error processing guild ${guildId}:`, err);
     }

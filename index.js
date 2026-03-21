@@ -15,7 +15,7 @@ import { ScoreStore } from "./services/ScoreStore.js";
 import { setupStudySystem, handleStudyStart, handleTopicSubmit, handleFindGroups, handleJoinDirect, handleShowStats, handleRoleAdd, handleRoleRemove, handleStudyGroupJoin, recoverSessions } from "./services/study.js";
 import { StudyStatsStore } from "./services/StudyStatsStore.js";
 import { handleQuizStart } from "./handlers/quizHandlers.js";
-import { handleLeaderboard, handleMyStats, handleStudyLeaderboard, handleHelpCommand } from "./handlers/leaderboardHandlers.js";
+import { handleLeaderboard, handleMyStats, handleStudyLeaderboard, handleHelpCommand, scheduleWeeklyReset } from "./handlers/leaderboardHandlers.js";
 import { handleViolationsCommand, handleResetPeriodCommand, handleInsightsCommand } from "./handlers/adminCommandHandlers.js";
 import { handleTamoohMyStatsCommand, handleTamoohInsightsCommand, handleTamoohViolationsCommand, handleTamoohResetPeriodCommand } from "./handlers/tamoohSlashWrappers.js";
 import { swapStore } from "./services/SwapStore.js";
@@ -141,6 +141,9 @@ client.once("ready", async () => {
     startHealthCheck();
   }
 
+  // Schedule weekly Saturday 12am leaderboard reset
+  scheduleWeeklyReset(client, studyStatsStore);
+
   // Initialize swap coordinator (needs client)
   try {
     swapCoordinator.init(client);
@@ -216,18 +219,6 @@ client.on("interactionCreate", async (interaction) => {
  * Handle slash commands
  */
 async function handleSlashCommand(interaction) {
-  // Lock to Qimah guild if env is set
-  if (
-    process.env.QIMAH_GUILD_ID &&
-    interaction.guildId !== process.env.QIMAH_GUILD_ID
-  ) {
-    await interaction.reply({
-      content: "This bot is locked to the Qimah server.",
-      ephemeral: true,
-    });
-    return;
-  }
-
   if (interaction.commandName === "quiz") {
     const subcommand = interaction.options.getSubcommand();
     if (subcommand === "start") {
@@ -300,14 +291,6 @@ async function handleSlashCommand(interaction) {
 client.on("messageCreate", async (message) => {
   // Ignore bots
   if (message.author.bot) return;
-
-  // Lock to Qimah guild if env is set
-  if (
-    process.env.QIMAH_GUILD_ID &&
-    message.guildId !== process.env.QIMAH_GUILD_ID
-  ) {
-    return;
-  }
 
   // Handle swap thread confirmations (for any message in threads)
   if (message.channel.isThread()) {
@@ -486,19 +469,11 @@ async function handleModalSubmit(interaction) {
 
 // Member join logging for verification system
 client.on("guildMemberAdd", async (member) => {
-  // Only log for Qimah guild if configured
-  if (process.env.QIMAH_GUILD_ID && member.guild.id !== process.env.QIMAH_GUILD_ID) {
-    return;
-  }
   await logMemberApplication(member);
 });
 
 // Membership screening pass logging
 client.on("guildMemberUpdate", async (oldMember, newMember) => {
-  // Only log for Qimah guild if configured
-  if (process.env.QIMAH_GUILD_ID && newMember.guild.id !== process.env.QIMAH_GUILD_ID) {
-    return;
-  }
   // Check if user just passed membership screening
   if (oldMember.pending && !newMember.pending) {
     await logScreeningPass(newMember);
