@@ -1,6 +1,6 @@
 # Qimah Quiz Bot (Tamooh Bot)
 
-A Discord bot for the Qimah student community at KSU.
+A Discord bot for the Qimah student community at PSU.
 
 ## Project Location
 `/opt/qimah/Discord/qimah-quiz-bot`
