@@ -3,7 +3,7 @@ import { STUDY_ROLE_ID, TAMOOH_ROLE_ID, OWNER_ID } from "../services/study/confi
 
 const { EmbedBuilder } = Discord;
 
-const WEEKLY_SUMMARY_CHANNEL_ID = "1481815772371222561";
+const WEEKLY_SUMMARY_CHANNEL_ID = process.env.LEADERBOARD_CHANNEL_ID;
 
 /**
  * Parse time range string to milliseconds
