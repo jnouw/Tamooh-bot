@@ -311,7 +311,10 @@ client.on("voiceStateUpdate", (oldState, newState) => {
   const isStudyChannel = (channel) => {
     if (!channel) return false;
     if (studyCategoryId) return channel.parentId === studyCategoryId;
-    return true; // track all voice channels
+    // Exclude private channels (@everyone must be able to view and connect)
+    const everyonePerms = channel.permissionsFor(channel.guild.roles.everyone);
+    if (!everyonePerms?.has('ViewChannel') || !everyonePerms?.has('Connect')) return false;
+    return true;
   };
 
   const wasInStudy = isStudyChannel(oldState.channel);
