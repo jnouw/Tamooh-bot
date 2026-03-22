@@ -6,6 +6,17 @@ const { EmbedBuilder } = Discord;
 const WEEKLY_SUMMARY_CHANNEL_ID = process.env.LEADERBOARD_CHANNEL_ID;
 
 /**
+ * Format minutes into "Xh Ym" (e.g. 90 -> "1h 30m", 45 -> "45m")
+ */
+function formatMinutes(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
+}
+
+/**
  * Format milliseconds into a human-readable "Xd Yh Zm" string
  */
 function formatTimeRemaining(ms) {
@@ -273,7 +284,7 @@ export async function handleMyStudyTime(interaction, voiceTimeStore, voiceJoinTi
   const rankText = rank > 0 ? `#${rank} out of ${sorted.length}` : "Unranked";
 
   const liveText = joinTime
-    ? `\n🔴 **Currently studying:** ${liveMinutes}m active right now`
+    ? `\n🔴 **Currently studying:** ${formatMinutes(liveMinutes)} active right now`
     : "";
 
   const timeLeft = formatTimeRemaining(getMsUntilNextSaturday());
@@ -281,8 +292,8 @@ export async function handleMyStudyTime(interaction, voiceTimeStore, voiceJoinTi
   const embed = new EmbedBuilder()
     .setTitle(`📊 Your Study Stats`)
     .setDescription(
-      `🎙️ **This week:** ${weeklyHours}h\n` +
-      `📚 **All time:** ${lifetimeHours}h\n` +
+      `🎙️ **This week:** ${formatMinutes(weeklyMinutes)} (${weeklyHours}h)\n` +
+      `📚 **All time:** ${formatMinutes(lifetimeMinutes)} (${lifetimeHours}h)\n` +
       `🏆 **Rank:** ${rankText}` +
       liveText
     )
