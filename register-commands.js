@@ -234,13 +234,20 @@ const commands = [
 
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
+const guildIds = [
+  process.env.QIMAH_GUILD_ID,
+  ...(process.env.EXTRA_GUILD_IDS ? process.env.EXTRA_GUILD_IDS.split(',') : [])
+].filter(Boolean);
+
 try {
-  console.log('🔄 Registering guild slash commands...');
-  await rest.put(
-    Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.QIMAH_GUILD_ID),
-    { body: commands }
-  );
-  console.log('✅ Slash commands registered successfully to the guild!');
+  for (const guildId of guildIds) {
+    console.log(`🔄 Registering slash commands to guild ${guildId}...`);
+    await rest.put(
+      Routes.applicationGuildCommands(process.env.CLIENT_ID, guildId),
+      { body: commands }
+    );
+    console.log(`✅ Slash commands registered to guild ${guildId}!`);
+  }
 } catch (error) {
   console.error('❌ Failed to register commands:', error);
   process.exit(1);
