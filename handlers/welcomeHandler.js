@@ -1,12 +1,12 @@
-import { EmbedBuilder } from "discord.js";
+import { EmbedBuilder, AttachmentBuilder } from "discord.js";
+import { existsSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 import { CONFIG } from "../config.js";
 import { logger } from "../utils/logger.js";
 
-// Permanent CDN URL (no expiry, no signed params)
-const WELCOME_IMAGE = "https://cdn.discordapp.com/attachments/1421591829647982604/1484037310612770938/image.png";
-
-// Dedup: track recently welcomed members to prevent firing twice from multiple guildMemberUpdate events
-const recentlyWelcomed = new Set();
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const WELCOME_IMAGE_PATH = join(__dirname, "../assets/welcome.png");
 
 /**
  * Sends the Qimah welcome message tagging the new member and key channels.
@@ -15,11 +15,6 @@ const recentlyWelcomed = new Set();
  */
 export async function sendWelcomeMessage(member) {
   if (!CONFIG.WELCOME.ENABLED) return;
-
-  // Prevent duplicate welcome messages for the same user
-  if (recentlyWelcomed.has(member.id)) return;
-  recentlyWelcomed.add(member.id);
-  setTimeout(() => recentlyWelcomed.delete(member.id), 60_000);
 
   const channelId = CONFIG.WELCOME.CHANNEL_ID;
   if (!channelId) {
@@ -62,13 +57,23 @@ export async function sendWelcomeMessage(member) {
     guideMention,
   ].join("\n");
 
+  const hasImage = existsSync(WELCOME_IMAGE_PATH);
+
   const embed = new EmbedBuilder()
     .setColor(CONFIG.WELCOME.COLOR)
-    .setDescription(description)
-    .setImage(WELCOME_IMAGE);
+    .setDescription(description);
+
+  if (hasImage) {
+    embed.setImage("attachment://welcome.png");
+  }
+
+  const payload = { embeds: [embed] };
+  if (hasImage) {
+    payload.files = [new AttachmentBuilder(WELCOME_IMAGE_PATH, { name: "welcome.png" })];
+  }
 
   try {
-    await channel.send({ embeds: [embed] });
+    await channel.send(payload);
     logger.info("Welcome message sent", { userId: member.id, guildId: member.guild.id });
   } catch (error) {
     logger.error("Failed to send welcome message", { error: error.message, userId: member.id });
