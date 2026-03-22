@@ -256,7 +256,9 @@ export async function handleMyStudyTime(interaction, voiceTimeStore, voiceJoinTi
   // Check if they're currently in a study room
   const key = `${guildId}_${userId}`;
   const joinTime = voiceJoinTimes.get(key);
-  const liveMinutes = joinTime ? Math.floor((Date.now() - joinTime) / 60000) : 0;
+  const liveSeconds = joinTime ? Math.floor((Date.now() - joinTime) / 1000) : 0;
+  const liveMinutes = Math.floor(liveSeconds / 60);
+  const liveSecsRemainder = liveSeconds % 60;
 
   const weeklyMinutes = stored.weeklyMinutes + liveMinutes;
   const lifetimeMinutes = stored.lifetimeMinutes + liveMinutes;
@@ -276,15 +278,24 @@ export async function handleMyStudyTime(interaction, voiceTimeStore, voiceJoinTi
     userMap.set(uId, { ...base, weeklyMinutes: base.weeklyMinutes + lm });
   }
 
+  // Include current user even if under 1 minute
+  if (joinTime && !userMap.has(userId)) {
+    userMap.set(userId, { userId, weeklyMinutes: liveMinutes, lifetimeMinutes: liveMinutes });
+  }
+
   const sorted = Array.from(userMap.values())
-    .filter(u => u.weeklyMinutes > 0)
     .sort((a, b) => b.weeklyMinutes - a.weeklyMinutes);
 
   const rank = sorted.findIndex(u => u.userId === userId) + 1;
   const rankText = rank > 0 ? `#${rank} out of ${sorted.length}` : "Unranked";
 
+  // Live session display: show minutes and seconds
+  const liveDisplay = liveMinutes > 0
+    ? `${liveMinutes}m ${liveSecsRemainder}s`
+    : `${liveSeconds}s`;
+
   const liveText = joinTime
-    ? `\n🔴 **Currently studying:** ${formatMinutes(liveMinutes)} active right now`
+    ? `\n🔴 **Currently studying:** ${liveDisplay} in this session`
     : "";
 
   const timeLeft = formatTimeRemaining(getMsUntilNextSaturday());
