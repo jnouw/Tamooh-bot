@@ -54,6 +54,7 @@ import {
   handleEnterCodeButton,
   handleCodeModalSubmit
 } from "./handlers/verifyHandlers.js";
+import { sendWelcomeMessage } from "./handlers/welcomeHandler.js";
 import { verificationStore } from "./services/VerificationStore.js";
 import { setupJTCSystem, isJTCInteraction, handleJTCInteraction, postJTCControlPanel } from "./services/jtc/index.js";
 import { VOICE_CATEGORY_ID } from "./services/study/config.js";
@@ -357,6 +358,13 @@ client.on("messageCreate", async (message) => {
       await handleResetPeriodCommand(message, studyStatsStore);
     } else if (command === "insights") {
       await handleInsightsCommand(message, studyStatsStore);
+    } else if (command === "testwelcome") {
+      if (!message.member?.permissions.has("Administrator")) {
+        return message.reply("❌ Admins only.");
+      }
+      const target = message.mentions.members?.first() || message.member;
+      await sendWelcomeMessage(target);
+      await message.reply(`✅ Welcome message sent for ${target}.`);
     }
   } catch (error) {
     logger.error("Message command error", {
@@ -512,11 +520,12 @@ client.on("guildMemberAdd", async (member) => {
   await logMemberApplication(member);
 });
 
-// Membership screening pass logging
+// Membership screening pass logging + welcome message
 client.on("guildMemberUpdate", async (oldMember, newMember) => {
   // Check if user just passed membership screening
   if (oldMember.pending && !newMember.pending) {
     await logScreeningPass(newMember);
+    await sendWelcomeMessage(newMember);
   }
 });
 

@@ -124,6 +124,26 @@ export const CONFIG = {
     VALID_CAMPUSES: ['F', 'M'],
   },
 
+  // Welcome Message System
+  WELCOME: {
+    // Set to false to disable welcome messages entirely
+    ENABLED: process.env.WELCOME_ENABLED !== 'false',
+
+    // Channel where welcome messages are sent
+    CHANNEL_ID: process.env.WELCOME_CHANNEL_ID || '1481862361009754205',
+
+    // Channels mentioned in the welcome message
+    CHAT_CHANNEL_ID: process.env.WELCOME_CHAT_CHANNEL_ID || '1481815772371222561',
+    TICKETS_CHANNEL_ID: process.env.WELCOME_TICKETS_CHANNEL_ID || '1481815772371222566',
+    GUIDE_CHANNEL_ID: process.env.WELCOME_GUIDE_CHANNEL_ID || '1481815772371222568',
+
+    // Video link shown to new Discord users
+    NEW_USER_VIDEO_URL: process.env.WELCOME_VIDEO_URL || null,
+
+    // Embed color
+    COLOR: 0x1E6649,
+  },
+
   // JTC (Join-to-Create) Voice System
   JTC: {
     // Voice channel users join to create their own room
