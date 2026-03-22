@@ -172,12 +172,39 @@ export async function handleMyStats(interaction, scores) {
 }
 
 /**
- * Handle study leaderboard command — shows voice chat time this week
+ * Handle study leaderboard command — shows voice chat time this week (including live sessions)
  */
-export async function handleStudyLeaderboard(interaction, voiceTimeStore) {
+export async function handleStudyLeaderboard(interaction, voiceTimeStore, voiceJoinTimes) {
   await interaction.deferReply({ ephemeral: false });
 
-  const leaderboard = voiceTimeStore.getLeaderboard(interaction.guildId, 10);
+  // Get saved data for all users
+  const stored = voiceTimeStore.getLeaderboard(interaction.guildId, 999);
+  const userMap = new Map(stored.map(e => [e.userId, { ...e, isLive: false }]));
+
+  // Add live time for users currently in a study channel
+  const now = Date.now();
+  for (const [key, joinTime] of voiceJoinTimes) {
+    const [guildId, userId] = key.split('_');
+    if (guildId !== interaction.guildId) continue;
+
+    const liveMinutes = Math.floor((now - joinTime) / 60000);
+    const base = userMap.get(userId) || { userId, weeklyMinutes: 0, lifetimeMinutes: 0 };
+    const weeklyMinutes = base.weeklyMinutes + liveMinutes;
+    const lifetimeMinutes = base.lifetimeMinutes + liveMinutes;
+    userMap.set(userId, {
+      userId,
+      weeklyMinutes,
+      lifetimeMinutes,
+      weeklyHours: Math.round(weeklyMinutes / 60 * 10) / 10,
+      lifetimeHours: Math.round(lifetimeMinutes / 60 * 10) / 10,
+      isLive: true,
+    });
+  }
+
+  const leaderboard = Array.from(userMap.values())
+    .filter(u => u.weeklyMinutes > 0)
+    .sort((a, b) => b.weeklyMinutes - a.weeklyMinutes)
+    .slice(0, 10);
 
   if (leaderboard.length === 0) {
     await interaction.editReply({
@@ -188,8 +215,9 @@ export async function handleStudyLeaderboard(interaction, voiceTimeStore) {
 
   const lines = leaderboard.map((entry, i) => {
     const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `**${i + 1}.**`;
+    const live = entry.isLive ? " 🔴" : "";
     return (
-      `${medal} <@${entry.userId}>\n` +
+      `${medal} <@${entry.userId}>${live}\n` +
       `   🎙️ **${entry.weeklyHours}h** this week  |  📚 ${entry.lifetimeHours}h all time`
     );
   });
@@ -200,7 +228,7 @@ export async function handleStudyLeaderboard(interaction, voiceTimeStore) {
     .setTitle("🏆 Study Room Leaderboard — This Week")
     .setDescription(lines.join("\n\n"))
     .setColor(0x5865f2)
-    .setFooter({ text: `Resets in: ${timeLeft} (Saturday 12:00 AM) | Based on voice chat time` });
+    .setFooter({ text: `🔴 = currently in study room | Resets in: ${timeLeft} (Saturday 12:00 AM)` });
 
   await interaction.editReply({ embeds: [embed] });
 }

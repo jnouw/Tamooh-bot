@@ -235,7 +235,7 @@ async function handleSlashCommand(interaction) {
       await handleMyStats(interaction, scores);
     }
   } else if (interaction.commandName === "study_leaderboard") {
-    await handleStudyLeaderboard(interaction, voiceTimeStore);
+    await handleStudyLeaderboard(interaction, voiceTimeStore, voiceJoinTimes);
   } else if (interaction.commandName === "timeleft") {
     await handleTimeLeft(interaction);
   } else if (interaction.commandName === "tamooh") {
