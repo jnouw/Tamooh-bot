@@ -234,6 +234,11 @@ const commands = [
   new SlashCommandBuilder()
     .setName('timeleft')
     .setDescription('See how much time is left until the weekly leaderboard reset')
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName('mystudytime')
+    .setDescription('Check how much time you have studied in voice rooms this week')
     .toJSON()
 ];
 

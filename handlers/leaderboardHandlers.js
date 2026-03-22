@@ -234,6 +234,65 @@ export async function handleStudyLeaderboard(interaction, voiceTimeStore, voiceJ
 }
 
 /**
+ * Handle /mystudytime command — shows a student their own voice time stats
+ */
+export async function handleMyStudyTime(interaction, voiceTimeStore, voiceJoinTimes) {
+  const userId = interaction.user.id;
+  const guildId = interaction.guildId;
+
+  const stored = voiceTimeStore.getUserTime(userId, guildId);
+
+  // Check if they're currently in a study room
+  const key = `${guildId}_${userId}`;
+  const joinTime = voiceJoinTimes.get(key);
+  const liveMinutes = joinTime ? Math.floor((Date.now() - joinTime) / 60000) : 0;
+
+  const weeklyMinutes = stored.weeklyMinutes + liveMinutes;
+  const lifetimeMinutes = stored.lifetimeMinutes + liveMinutes;
+  const weeklyHours = Math.round(weeklyMinutes / 60 * 10) / 10;
+  const lifetimeHours = Math.round(lifetimeMinutes / 60 * 10) / 10;
+
+  // Get their rank on the leaderboard (including live data)
+  const allStored = voiceTimeStore.getLeaderboard(guildId, 999);
+  const userMap = new Map(allStored.map(e => [e.userId, { ...e }]));
+
+  const now = Date.now();
+  for (const [k, jt] of voiceJoinTimes) {
+    const [gId, uId] = k.split('_');
+    if (gId !== guildId) continue;
+    const lm = Math.floor((now - jt) / 60000);
+    const base = userMap.get(uId) || { userId: uId, weeklyMinutes: 0, lifetimeMinutes: 0 };
+    userMap.set(uId, { ...base, weeklyMinutes: base.weeklyMinutes + lm });
+  }
+
+  const sorted = Array.from(userMap.values())
+    .filter(u => u.weeklyMinutes > 0)
+    .sort((a, b) => b.weeklyMinutes - a.weeklyMinutes);
+
+  const rank = sorted.findIndex(u => u.userId === userId) + 1;
+  const rankText = rank > 0 ? `#${rank} out of ${sorted.length}` : "Unranked";
+
+  const liveText = joinTime
+    ? `\n🔴 **Currently studying:** ${liveMinutes}m active right now`
+    : "";
+
+  const timeLeft = formatTimeRemaining(getMsUntilNextSaturday());
+
+  const embed = new EmbedBuilder()
+    .setTitle(`📊 Your Study Stats`)
+    .setDescription(
+      `🎙️ **This week:** ${weeklyHours}h\n` +
+      `📚 **All time:** ${lifetimeHours}h\n` +
+      `🏆 **Rank:** ${rankText}` +
+      liveText
+    )
+    .setColor(joinTime ? 0xe74c3c : 0x2ecc71)
+    .setFooter({ text: `Leaderboard resets in: ${timeLeft} (Saturday 12:00 AM)` });
+
+  await interaction.reply({ embeds: [embed], ephemeral: true });
+}
+
+/**
  * Handle /timeleft command — shows time until next weekly reset
  */
 export async function handleTimeLeft(interaction) {

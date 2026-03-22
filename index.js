@@ -16,7 +16,7 @@ import { setupStudySystem, handleStudyStart, handleTopicSubmit, handleFindGroups
 import { StudyStatsStore } from "./services/StudyStatsStore.js";
 import { VoiceTimeStore } from "./services/VoiceTimeStore.js";
 import { handleQuizStart } from "./handlers/quizHandlers.js";
-import { handleLeaderboard, handleMyStats, handleStudyLeaderboard, handleHelpCommand, handleTimeLeft, scheduleWeeklyReset } from "./handlers/leaderboardHandlers.js";
+import { handleLeaderboard, handleMyStats, handleStudyLeaderboard, handleHelpCommand, handleTimeLeft, handleMyStudyTime, scheduleWeeklyReset } from "./handlers/leaderboardHandlers.js";
 import { handleViolationsCommand, handleResetPeriodCommand, handleInsightsCommand } from "./handlers/adminCommandHandlers.js";
 import { handleTamoohMyStatsCommand, handleTamoohInsightsCommand, handleTamoohViolationsCommand, handleTamoohResetPeriodCommand } from "./handlers/tamoohSlashWrappers.js";
 import { swapStore } from "./services/SwapStore.js";
@@ -238,6 +238,8 @@ async function handleSlashCommand(interaction) {
     await handleStudyLeaderboard(interaction, voiceTimeStore, voiceJoinTimes);
   } else if (interaction.commandName === "timeleft") {
     await handleTimeLeft(interaction);
+  } else if (interaction.commandName === "mystudytime") {
+    await handleMyStudyTime(interaction, voiceTimeStore, voiceJoinTimes);
   } else if (interaction.commandName === "tamooh") {
     const subcommand = interaction.options.getSubcommand();
     if (subcommand === "mystats") {
