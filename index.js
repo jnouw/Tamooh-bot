@@ -54,7 +54,6 @@ import {
   handleEnterCodeButton,
   handleCodeModalSubmit
 } from "./handlers/verifyHandlers.js";
-import { sendWelcomeMessage } from "./handlers/welcomeHandler.js";
 import { postSuggestionPanel, handleSuggestButton, handleSuggestModal } from "./handlers/suggestionHandler.js";
 import { suggestionStore } from "./services/SuggestionStore.js";
 import { verificationStore } from "./services/VerificationStore.js";
@@ -386,13 +385,6 @@ client.on("messageCreate", async (message) => {
       }
       await postSuggestionPanel(client, CONFIG.SUGGESTIONS.CHANNEL_ID);
       await message.reply("✅ Suggestion panel posted!");
-    } else if (command === "testwelcome") {
-      if (!message.member?.permissions.has("Administrator")) {
-        return message.reply("❌ Admins only.");
-      }
-      const target = message.mentions.members?.first() || message.member;
-      await sendWelcomeMessage(target, true); // force=true bypasses dedup for testing
-      await message.reply(`✅ Welcome message sent for ${target}.`);
     }
   } catch (error) {
     logger.error("Message command error", {
@@ -558,19 +550,10 @@ client.on("guildMemberAdd", async (member) => {
   await logMemberApplication(member);
 });
 
-// Synchronous dedup — must be outside the handler so it persists across concurrent events
-const screeningPassedIds = new Set();
-
-// Membership screening pass logging + welcome message
+// Membership screening pass logging
 client.on("guildMemberUpdate", async (oldMember, newMember) => {
   if (oldMember.pending && !newMember.pending) {
-    // Block here SYNCHRONOUSLY before any await — prevents all concurrent duplicate events
-    if (screeningPassedIds.has(newMember.id)) return;
-    screeningPassedIds.add(newMember.id);
-    setTimeout(() => screeningPassedIds.delete(newMember.id), 5 * 60 * 1000);
-
     await logScreeningPass(newMember);
-    await sendWelcomeMessage(newMember);
   }
 });
 
