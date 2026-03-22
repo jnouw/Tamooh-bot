@@ -55,6 +55,8 @@ import {
   handleCodeModalSubmit
 } from "./handlers/verifyHandlers.js";
 import { sendWelcomeMessage } from "./handlers/welcomeHandler.js";
+import { postSuggestionPanel, handleSuggestButton, handleSuggestModal } from "./handlers/suggestionHandler.js";
+import { suggestionStore } from "./services/SuggestionStore.js";
 import { verificationStore } from "./services/VerificationStore.js";
 import { setupJTCSystem, isJTCInteraction, handleJTCInteraction, postJTCControlPanel } from "./services/jtc/index.js";
 
@@ -105,6 +107,15 @@ try {
 } catch (error) {
   logger.error('Failed to initialize SwapStore', { error: error.message });
   console.error('⚠️  WARNING: Section swap system failed to initialize.');
+}
+
+// Init Suggestion system
+try {
+  suggestionStore.init();
+  logger.info('Suggestion system initialized');
+} catch (error) {
+  logger.error('Failed to initialize SuggestionStore', { error: error.message });
+  console.error('⚠️  WARNING: Suggestion system failed to initialize.');
 }
 
 // Init Verification system
@@ -369,6 +380,12 @@ client.on("messageCreate", async (message) => {
       await handleResetPeriodCommand(message, studyStatsStore);
     } else if (command === "insights") {
       await handleInsightsCommand(message, studyStatsStore);
+    } else if (command === "initsuggestions") {
+      if (!message.member?.permissions.has("Administrator")) {
+        return message.reply("❌ Admins only.");
+      }
+      await postSuggestionPanel(client, CONFIG.SUGGESTIONS.CHANNEL_ID);
+      await message.reply("✅ Suggestion panel posted!");
     } else if (command === "testwelcome") {
       if (!message.member?.permissions.has("Administrator")) {
         return message.reply("❌ Admins only.");
@@ -418,6 +435,11 @@ async function handleButton(interaction) {
   }
   if (customId === "study_group_join") {
     return await handleStudyGroupJoin(interaction);
+  }
+
+  // Suggestion system button
+  if (customId === "suggest_open") {
+    return await handleSuggestButton(interaction);
   }
 
   // Verification system buttons
@@ -493,6 +515,11 @@ async function handleModalSubmit(interaction) {
     return await handleTopicSubmit(interaction, interaction.client, mode, duration, topic);
   }
 
+  // Suggestion modal
+  if (interaction.customId === "suggest_modal") {
+    return await handleSuggestModal(interaction);
+  }
+
   // Verification modals
   if (interaction.customId === "verify_email_modal") {
     return await handleEmailModalSubmit(interaction);
@@ -552,6 +579,7 @@ process.on("SIGTERM", async () => {
   swapCoordinator.stop();
   swapStore.close();
   verificationStore.close();
+  suggestionStore.close();
   client.destroy();
   process.exit(0);
 });
@@ -567,6 +595,7 @@ process.on("SIGINT", async () => {
   swapCoordinator.stop();
   swapStore.close();
   verificationStore.close();
+  suggestionStore.close();
   client.destroy();
   process.exit(0);
 });

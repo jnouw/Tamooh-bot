@@ -144,6 +144,15 @@ export const CONFIG = {
     COLOR: 0x1E6649,
   },
 
+  // Anonymous Suggestion System
+  SUGGESTIONS: {
+    // Channel where the suggestion panel (button) is posted
+    CHANNEL_ID: process.env.SUGGESTIONS_CHANNEL_ID || '1483683369546940457',
+
+    // Staff-only channel where submitted suggestions are posted for review
+    ADMIN_CHANNEL_ID: process.env.SUGGESTIONS_ADMIN_CHANNEL_ID || '1485080587277701192',
+  },
+
   // JTC (Join-to-Create) Voice System
   JTC: {
     // Voice channel users join to create their own room
