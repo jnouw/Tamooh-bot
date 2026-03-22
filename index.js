@@ -333,12 +333,9 @@ client.on("voiceStateUpdate", (oldState, newState) => {
   const wasInStudy = isStudyChannel(oldState.channel);
   const isInStudy = isStudyChannel(newState.channel);
 
-  console.log(`[VoiceDebug] userId=${userId} old=${oldState.channel?.name || 'none'} new=${newState.channel?.name || 'none'} wasInStudy=${wasInStudy} isInStudy=${isInStudy}`);
-
   if (!wasInStudy && isInStudy) {
     // User joined a study channel
     voiceJoinTimes.set(key, Date.now());
-    console.log(`[VoiceDebug] Started tracking ${userId} in ${newState.channel.name}`);
   } else if (wasInStudy && !isInStudy) {
     // User left a study channel — record their time
     const joinTime = voiceJoinTimes.get(key);
