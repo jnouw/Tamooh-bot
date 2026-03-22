@@ -19,13 +19,18 @@ const WELCOME_IMAGE_PATH = join(__dirname, "../assets/welcome.png");
 export async function sendWelcomeMessage(member, force = false) {
   if (!CONFIG.WELCOME.ENABLED) return;
 
-  // DB-backed dedup — prevents sending more than once per user
+  // DB-backed dedup — persistent fallback across restarts
   if (!force) {
-    if (!suggestionStore.canWelcome(member.id)) {
-      logger.info("Welcome already sent, skipping", { userId: member.id });
-      return;
+    try {
+      if (!suggestionStore.canWelcome(member.id)) {
+        logger.info("Welcome already sent, skipping", { userId: member.id });
+        return;
+      }
+      suggestionStore.markWelcomed(member.id);
+    } catch (err) {
+      logger.error("Welcome dedup DB error", { error: err.message, userId: member.id });
+      // Continue — the in-memory Set in index.js already guards against duplicates
     }
-    suggestionStore.markWelcomed(member.id);
   }
 
   const channelId = CONFIG.WELCOME.CHANNEL_ID;

@@ -558,10 +558,17 @@ client.on("guildMemberAdd", async (member) => {
   await logMemberApplication(member);
 });
 
+// Synchronous dedup — must be outside the handler so it persists across concurrent events
+const screeningPassedIds = new Set();
+
 // Membership screening pass logging + welcome message
 client.on("guildMemberUpdate", async (oldMember, newMember) => {
-  // Check if user just passed membership screening
   if (oldMember.pending && !newMember.pending) {
+    // Block here SYNCHRONOUSLY before any await — prevents all concurrent duplicate events
+    if (screeningPassedIds.has(newMember.id)) return;
+    screeningPassedIds.add(newMember.id);
+    setTimeout(() => screeningPassedIds.delete(newMember.id), 5 * 60 * 1000);
+
     await logScreeningPass(newMember);
     await sendWelcomeMessage(newMember);
   }
