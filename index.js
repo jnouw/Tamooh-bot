@@ -57,7 +57,6 @@ import {
 import { sendWelcomeMessage } from "./handlers/welcomeHandler.js";
 import { verificationStore } from "./services/VerificationStore.js";
 import { setupJTCSystem, isJTCInteraction, handleJTCInteraction, postJTCControlPanel } from "./services/jtc/index.js";
-import { VOICE_CATEGORY_ID } from "./services/study/config.js";
 
 // Initialize services
 const questionLoader = new QuestionLoader();
@@ -305,11 +304,18 @@ client.on("voiceStateUpdate", (oldState, newState) => {
   if (!userId || !guildId) return;
   if (newState.member?.user.bot || oldState.member?.user.bot) return;
 
-  const studyCategoryId = process.env.VOICE_CATEGORY_ID || VOICE_CATEGORY_ID;
+  // If VOICE_CATEGORY_ID is set in .env, only track that category. Otherwise track all voice channels.
+  const studyCategoryId = process.env.VOICE_CATEGORY_ID || null;
   const key = `${guildId}_${userId}`;
 
-  const wasInStudy = oldState.channel?.parentId === studyCategoryId;
-  const isInStudy = newState.channel?.parentId === studyCategoryId;
+  const isStudyChannel = (channel) => {
+    if (!channel) return false;
+    if (studyCategoryId) return channel.parentId === studyCategoryId;
+    return true; // track all voice channels
+  };
+
+  const wasInStudy = isStudyChannel(oldState.channel);
+  const isInStudy = isStudyChannel(newState.channel);
 
   if (!wasInStudy && isInStudy) {
     // User joined a study channel
