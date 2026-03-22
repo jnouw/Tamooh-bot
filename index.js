@@ -311,9 +311,11 @@ client.on("voiceStateUpdate", (oldState, newState) => {
   const isStudyChannel = (channel) => {
     if (!channel) return false;
     if (studyCategoryId) return channel.parentId === studyCategoryId;
-    // Exclude private channels (@everyone must be able to view and connect)
-    const everyonePerms = channel.permissionsFor(channel.guild.roles.everyone);
-    if (!everyonePerms?.has('ViewChannel') || !everyonePerms?.has('Connect')) return false;
+    // Skip AFK channel
+    if (channel.guild.afkChannelId === channel.id) return false;
+    // Exclude private channels: skip if @everyone has an explicit deny on ViewChannel or Connect
+    const everyoneOverwrite = channel.permissionOverwrites.cache.get(channel.guild.id);
+    if (everyoneOverwrite?.deny.has('ViewChannel') || everyoneOverwrite?.deny.has('Connect')) return false;
     return true;
   };
 
