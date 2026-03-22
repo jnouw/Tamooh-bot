@@ -2,7 +2,11 @@ import { EmbedBuilder } from "discord.js";
 import { CONFIG } from "../config.js";
 import { logger } from "../utils/logger.js";
 
-const WELCOME_IMAGE = "https://media.discordapp.net/attachments/1421591829647982604/1484037310612770938/image.png?ex=69c010b2&is=69bebf32&hm=a9c0e4ec134e93373adb7aba09cf76d8bcc5c385af21958fe8dd594ac3db21fd&format=webp&quality=lossless&width=864&height=864&";
+// Permanent CDN URL (no expiry, no signed params)
+const WELCOME_IMAGE = "https://cdn.discordapp.com/attachments/1421591829647982604/1484037310612770938/image.png";
+
+// Dedup: track recently welcomed members to prevent firing twice from multiple guildMemberUpdate events
+const recentlyWelcomed = new Set();
 
 /**
  * Sends the Qimah welcome message tagging the new member and key channels.
@@ -11,6 +15,11 @@ const WELCOME_IMAGE = "https://media.discordapp.net/attachments/1421591829647982
  */
 export async function sendWelcomeMessage(member) {
   if (!CONFIG.WELCOME.ENABLED) return;
+
+  // Prevent duplicate welcome messages for the same user
+  if (recentlyWelcomed.has(member.id)) return;
+  recentlyWelcomed.add(member.id);
+  setTimeout(() => recentlyWelcomed.delete(member.id), 60_000);
 
   const channelId = CONFIG.WELCOME.CHANNEL_ID;
   if (!channelId) {
