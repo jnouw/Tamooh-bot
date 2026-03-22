@@ -1,5 +1,8 @@
+import { EmbedBuilder } from "discord.js";
 import { CONFIG } from "../config.js";
 import { logger } from "../utils/logger.js";
+
+const WELCOME_IMAGE = "https://media.discordapp.net/attachments/1421591829647982604/1484037310612770938/image.png?ex=69c010b2&is=69bebf32&hm=a9c0e4ec134e93373adb7aba09cf76d8bcc5c385af21958fe8dd594ac3db21fd&format=webp&quality=lossless&width=864&height=864&";
 
 /**
  * Sends the Qimah welcome message tagging the new member and key channels.
@@ -29,7 +32,7 @@ export async function sendWelcomeMessage(member) {
     ? `تقدر تشوف شرح مفصل هنا:\n${NEW_USER_VIDEO_URL}`
     : `تقدر تشوف شرح مفصل هنا`;
 
-  const message = [
+  const description = [
     `Welcome ${member} to Qimah!`,
     `حياك الله ${member} في سيرفر قمة`,
     ``,
@@ -50,8 +53,13 @@ export async function sendWelcomeMessage(member) {
     guideMention,
   ].join("\n");
 
+  const embed = new EmbedBuilder()
+    .setColor(CONFIG.WELCOME.COLOR)
+    .setDescription(description)
+    .setImage(WELCOME_IMAGE);
+
   try {
-    await channel.send({ content: message });
+    await channel.send({ embeds: [embed] });
     logger.info("Welcome message sent", { userId: member.id, guildId: member.guild.id });
   } catch (error) {
     logger.error("Failed to send welcome message", { error: error.message, userId: member.id });
