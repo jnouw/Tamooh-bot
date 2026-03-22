@@ -54,6 +54,7 @@ import {
   handleEnterCodeButton,
   handleCodeModalSubmit
 } from "./handlers/verifyHandlers.js";
+import { sendWelcomeMessage } from "./handlers/welcomeHandler.js";
 import { postSuggestionPanel, handleSuggestButton, handleSuggestModal } from "./handlers/suggestionHandler.js";
 import { suggestionStore } from "./services/SuggestionStore.js";
 import { verificationStore } from "./services/VerificationStore.js";
@@ -385,6 +386,13 @@ client.on("messageCreate", async (message) => {
       }
       await postSuggestionPanel(client, CONFIG.SUGGESTIONS.CHANNEL_ID);
       await message.reply("✅ Suggestion panel posted!");
+    } else if (command === "testwelcome") {
+      if (!message.member?.permissions.has("Administrator")) {
+        return message.reply("❌ Admins only.");
+      }
+      const target = message.mentions.members?.first() || message.member;
+      await sendWelcomeMessage(target, true);
+      await message.reply(`✅ Welcome message sent for ${target}.`);
     }
   } catch (error) {
     logger.error("Message command error", {
@@ -550,10 +558,11 @@ client.on("guildMemberAdd", async (member) => {
   await logMemberApplication(member);
 });
 
-// Membership screening pass logging
+// Membership screening pass logging + welcome message
 client.on("guildMemberUpdate", async (oldMember, newMember) => {
   if (oldMember.pending && !newMember.pending) {
     await logScreeningPass(newMember);
+    await sendWelcomeMessage(newMember);
   }
 });
 
