@@ -229,6 +229,11 @@ const commands = [
   new SlashCommandBuilder()
     .setName('jtcpanel')
     .setDescription('Post the JTC voice room control panel (Admin only)')
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName('timeleft')
+    .setDescription('See how much time is left until the weekly leaderboard reset')
     .toJSON()
 ];
 

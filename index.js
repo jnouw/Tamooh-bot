@@ -14,8 +14,9 @@ import { logger } from "./utils/logger.js";
 import { ScoreStore } from "./services/ScoreStore.js";
 import { setupStudySystem, handleStudyStart, handleTopicSubmit, handleFindGroups, handleJoinDirect, handleShowStats, handleRoleAdd, handleRoleRemove, handleStudyGroupJoin, recoverSessions } from "./services/study.js";
 import { StudyStatsStore } from "./services/StudyStatsStore.js";
+import { VoiceTimeStore } from "./services/VoiceTimeStore.js";
 import { handleQuizStart } from "./handlers/quizHandlers.js";
-import { handleLeaderboard, handleMyStats, handleStudyLeaderboard, handleHelpCommand, scheduleWeeklyReset } from "./handlers/leaderboardHandlers.js";
+import { handleLeaderboard, handleMyStats, handleStudyLeaderboard, handleHelpCommand, handleTimeLeft, scheduleWeeklyReset } from "./handlers/leaderboardHandlers.js";
 import { handleViolationsCommand, handleResetPeriodCommand, handleInsightsCommand } from "./handlers/adminCommandHandlers.js";
 import { handleTamoohMyStatsCommand, handleTamoohInsightsCommand, handleTamoohViolationsCommand, handleTamoohResetPeriodCommand } from "./handlers/tamoohSlashWrappers.js";
 import { swapStore } from "./services/SwapStore.js";
@@ -55,12 +56,17 @@ import {
 } from "./handlers/verifyHandlers.js";
 import { verificationStore } from "./services/VerificationStore.js";
 import { setupJTCSystem, isJTCInteraction, handleJTCInteraction, postJTCControlPanel } from "./services/jtc/index.js";
+import { VOICE_CATEGORY_ID } from "./services/study/config.js";
 
 // Initialize services
 const questionLoader = new QuestionLoader();
 const sessionManager = new SessionManager();
 const scores = new ScoreStore();
 const studyStatsStore = new StudyStatsStore();
+const voiceTimeStore = new VoiceTimeStore();
+
+// Track when users join study voice channels: "guildId_userId" -> joinTimestamp
+const voiceJoinTimes = new Map();
 
 // Initialize Discord client
 const client = new Client({
@@ -142,7 +148,7 @@ client.once("ready", async () => {
   }
 
   // Schedule weekly Saturday 12am leaderboard reset
-  scheduleWeeklyReset(client, studyStatsStore);
+  scheduleWeeklyReset(client, voiceTimeStore);
 
   // Initialize swap coordinator (needs client)
   try {
@@ -229,7 +235,9 @@ async function handleSlashCommand(interaction) {
       await handleMyStats(interaction, scores);
     }
   } else if (interaction.commandName === "study_leaderboard") {
-    await handleStudyLeaderboard(interaction, studyStatsStore);
+    await handleStudyLeaderboard(interaction, voiceTimeStore);
+  } else if (interaction.commandName === "timeleft") {
+    await handleTimeLeft(interaction);
   } else if (interaction.commandName === "tamooh") {
     const subcommand = interaction.options.getSubcommand();
     if (subcommand === "mystats") {
@@ -284,6 +292,36 @@ async function handleSlashCommand(interaction) {
     }
   }
 }
+
+/**
+ * Track voice time in study channels
+ */
+client.on("voiceStateUpdate", (oldState, newState) => {
+  const userId = newState.member?.id || oldState.member?.id;
+  const guildId = newState.guild?.id || oldState.guild?.id;
+  if (!userId || !guildId) return;
+  if (newState.member?.user.bot || oldState.member?.user.bot) return;
+
+  const studyCategoryId = process.env.VOICE_CATEGORY_ID || VOICE_CATEGORY_ID;
+  const key = `${guildId}_${userId}`;
+
+  const wasInStudy = oldState.channel?.parentId === studyCategoryId;
+  const isInStudy = newState.channel?.parentId === studyCategoryId;
+
+  if (!wasInStudy && isInStudy) {
+    // User joined a study channel
+    voiceJoinTimes.set(key, Date.now());
+  } else if (wasInStudy && !isInStudy) {
+    // User left a study channel — record their time
+    const joinTime = voiceJoinTimes.get(key);
+    if (joinTime) {
+      const minutes = Math.floor((Date.now() - joinTime) / 60000);
+      voiceTimeStore.addTime(userId, guildId, minutes);
+      voiceJoinTimes.delete(key);
+    }
+  }
+  // Moving between study channels: keep the original join time (no change needed)
+});
 
 /**
  * Handle ! prefix commands (admin only, hidden from slash command list)

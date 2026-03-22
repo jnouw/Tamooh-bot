@@ -6,6 +6,21 @@ const { EmbedBuilder } = Discord;
 const WEEKLY_SUMMARY_CHANNEL_ID = process.env.LEADERBOARD_CHANNEL_ID;
 
 /**
+ * Format milliseconds into a human-readable "Xd Yh Zm" string
+ */
+function formatTimeRemaining(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const parts = [];
+  if (days > 0) parts.push(`${days}d`);
+  if (hours > 0) parts.push(`${hours}h`);
+  parts.push(`${minutes}m`);
+  return parts.join(' ');
+}
+
+/**
  * Parse time range string to milliseconds
  */
 function parseRange(range) {
@@ -32,84 +47,45 @@ function getMsUntilNextSaturday() {
 /**
  * Build and send the weekly study summary embed, then reset the period
  */
-async function sendWeeklySummaryAndReset(client, studyStatsStore) {
+async function sendWeeklySummaryAndReset(client, voiceTimeStore) {
   for (const [guildId, guild] of client.guilds.cache) {
     try {
       const channel = guild.channels.cache.get(WEEKLY_SUMMARY_CHANNEL_ID);
       if (!channel) continue;
 
-      // Fetch all members so role cache is populated
-      await guild.members.fetch();
-      const allMembers = guild.members.cache;
-
-      // Gather this week's hours for all eligible users
-      const weekMs = 7 * 24 * 60 * 60 * 1000;
-      const sinceMs = Date.now() - weekMs;
-
-      const weeklyEntries = [];
-      let totalTickets = 0;
-
-      for (const [userId, member] of allMembers) {
-        if (member.user.bot) continue;
-
-        const hasStudyRole = member.roles.cache.has(STUDY_ROLE_ID);
-        const hasTamoohRole = member.roles.cache.has(TAMOOH_ROLE_ID);
-        if (!hasStudyRole || !hasTamoohRole) continue;
-
-        const stats = studyStatsStore.getUserStats(userId, guildId);
-        const tickets = studyStatsStore.calculateTickets(
-          stats.lifetimeHours,
-          stats.currentPeriodHours
-        );
-
-        totalTickets += tickets;
-
-        if (stats.currentPeriodHours > 0) {
-          weeklyEntries.push({
-            userId,
-            lifetimeHours: stats.lifetimeHours,
-            currentPeriodHours: stats.currentPeriodHours,
-            tickets,
-          });
-        }
-      }
-
-      // Sort by current period hours descending
-      weeklyEntries.sort((a, b) => b.currentPeriodHours - a.currentPeriodHours);
-      const top10 = weeklyEntries.slice(0, 10);
+      const winner = voiceTimeStore.getWinner(guildId);
+      const top10 = voiceTimeStore.getLeaderboard(guildId, 10);
 
       if (top10.length === 0) {
         await channel.send({
-          content: "📅 **Weekly Study Reset** — No study sessions were recorded this week. Period has been reset. Keep it up next week! 💪",
+          content: "📅 **Weekly Study Reset** — No voice study time recorded this week. The leaderboard has been reset. Keep it up next week! 💪",
         });
       } else {
         const lines = top10.map((entry, i) => {
           const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `**${i + 1}.**`;
-          const winChance =
-            totalTickets > 0
-              ? ((entry.tickets / totalTickets) * 100).toFixed(2)
-              : "0.00";
-
           return (
             `${medal} <@${entry.userId}>\n` +
-            `   🔥 ${entry.currentPeriodHours}h this week | 📚 ${entry.lifetimeHours}h lifetime\n` +
-            `   🎫 ${entry.tickets} tickets | 🎲 ${winChance}% win chance`
+            `   🎙️ ${entry.weeklyHours}h this week | 📚 ${entry.lifetimeHours}h all time`
           );
         });
 
+        const winnerLine = winner
+          ? `\n\n🏆 **This week's winner: <@${winner.userId}> with ${winner.weeklyHours}h!** 🎉`
+          : "";
+
         const embed = new EmbedBuilder()
-          .setTitle("📅 Weekly Study Summary — Top Performers")
-          .setDescription(lines.join("\n\n"))
-          .setColor(0x5865f2)
+          .setTitle("📅 Weekly Study Room Results")
+          .setDescription(lines.join("\n\n") + winnerLine)
+          .setColor(0xf1c40f)
           .setFooter({
-            text: `Week ending ${new Date().toLocaleDateString()} | Period is now reset. Good luck next week! 💚`,
+            text: `Week ending ${new Date().toLocaleDateString()} | Leaderboard has been reset. Good luck this week! 💚`,
           });
 
         await channel.send({ embeds: [embed] });
       }
 
-      // Reset the giveaway period for this guild
-      await studyStatsStore.resetGiveawayPeriod(guildId);
+      // Reset weekly minutes for all users
+      await voiceTimeStore.resetPeriod(guildId);
     } catch (err) {
       console.error(`[WeeklyReset] Error processing guild ${guildId}:`, err);
     }
@@ -118,20 +94,18 @@ async function sendWeeklySummaryAndReset(client, studyStatsStore) {
 
 /**
  * Schedule the weekly Saturday 12am reset.
- * Call this once on bot startup, passing in the Discord client and studyStatsStore.
+ * Call this once on bot startup.
  */
-export function scheduleWeeklyReset(client, studyStatsStore) {
+export function scheduleWeeklyReset(client, voiceTimeStore) {
   const msUntilFirst = getMsUntilNextSaturday();
   const days = (msUntilFirst / 1000 / 60 / 60 / 24).toFixed(2);
   console.log(`[WeeklyReset] First reset scheduled in ${days} days (next Saturday 12:00 AM).`);
 
   setTimeout(() => {
-    // Fire immediately on the first Saturday
-    sendWeeklySummaryAndReset(client, studyStatsStore);
+    sendWeeklySummaryAndReset(client, voiceTimeStore);
 
-    // Then repeat every 7 days
     setInterval(() => {
-      sendWeeklySummaryAndReset(client, studyStatsStore);
+      sendWeeklySummaryAndReset(client, voiceTimeStore);
     }, 7 * 24 * 60 * 60 * 1000);
   }, msUntilFirst);
 }
@@ -198,81 +172,62 @@ export async function handleMyStats(interaction, scores) {
 }
 
 /**
- * Handle study leaderboard command
+ * Handle study leaderboard command — shows voice chat time this week
  */
-export async function handleStudyLeaderboard(interaction, studyStatsStore) {
+export async function handleStudyLeaderboard(interaction, voiceTimeStore) {
   await interaction.deferReply({ ephemeral: false });
 
-  const leaderboard = studyStatsStore.getLeaderboard(interaction.guildId, 10);
+  const leaderboard = voiceTimeStore.getLeaderboard(interaction.guildId, 10);
 
   if (leaderboard.length === 0) {
     await interaction.editReply({
-      content: "📚 No study sessions recorded yet. Be the first to start!",
+      content: "🎙️ No voice study time recorded yet this week. Join a study room to get started!",
     });
     return;
   }
 
-  // Calculate tickets for leaderboard users using period-based formula
-  const usersWithTickets = leaderboard.map((entry) => {
-    const tickets = studyStatsStore.calculateTickets(
-      entry.lifetimeHours,
-      entry.currentPeriodHours
-    );
-    return { ...entry, tickets };
-  });
-
-  // Sort by tickets descending
-  usersWithTickets.sort((a, b) => b.tickets - a.tickets);
-
-  // Calculate total tickets across all eligible users
-  await interaction.guild.members.fetch();
-  const allMembers = interaction.guild.members.cache;
-  let totalTickets = 0;
-
-  for (const [userId, member] of allMembers) {
-    if (member.user.bot) continue;
-
-    const hasStudyRole = member.roles.cache.has(STUDY_ROLE_ID);
-    const hasTamoohRole = member.roles.cache.has(TAMOOH_ROLE_ID);
-    if (!hasStudyRole || !hasTamoohRole) continue;
-
-    const stats = studyStatsStore.getUserStats(userId, interaction.guildId);
-    const tickets = studyStatsStore.calculateTickets(
-      stats.lifetimeHours,
-      stats.currentPeriodHours
-    );
-    totalTickets += tickets;
-  }
-
-  const lines = usersWithTickets.map((entry, i) => {
+  const lines = leaderboard.map((entry, i) => {
     const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `**${i + 1}.**`;
-    const winChance =
-      totalTickets > 0
-        ? ((entry.tickets / totalTickets) * 100).toFixed(2)
-        : "0.00";
-
     return (
       `${medal} <@${entry.userId}>\n` +
-      `   🎫 ${entry.tickets} tickets | 📚 ${entry.lifetimeHours}h lifetime | 🔥 ${entry.currentPeriodHours}h this period\n` +
-      `   🎲 ${winChance}% win chance`
+      `   🎙️ **${entry.weeklyHours}h** this week  |  📚 ${entry.lifetimeHours}h all time`
     );
   });
 
-  const periodStart = studyStatsStore.getGiveawayPeriodStart(interaction.guildId);
-  const periodInfo =
-    periodStart > 0
-      ? `Current period started: ${new Date(periodStart).toLocaleDateString()}`
-      : "No period reset yet - all hours count equally";
+  const timeLeft = formatTimeRemaining(getMsUntilNextSaturday());
 
   const embed = new EmbedBuilder()
-    .setTitle("📚 Study Leaderboard - Top 10")
+    .setTitle("🏆 Study Room Leaderboard — This Week")
     .setDescription(lines.join("\n\n"))
     .setColor(0x5865f2)
-    .setFooter({
-      text: `${periodInfo} | Formula: 30 + √lifetime×5 + current×3 | Resets every Saturday 12:00 AM`,
-    });
+    .setFooter({ text: `Resets in: ${timeLeft} (Saturday 12:00 AM) | Based on voice chat time` });
 
   await interaction.editReply({ embeds: [embed] });
+}
+
+/**
+ * Handle /timeleft command — shows time until next weekly reset
+ */
+export async function handleTimeLeft(interaction) {
+  const ms = getMsUntilNextSaturday();
+  const timeLeft = formatTimeRemaining(ms);
+
+  const nextSat = new Date();
+  const daysUntil = (6 - nextSat.getDay() + 7) % 7 || 7;
+  nextSat.setDate(nextSat.getDate() + daysUntil);
+  nextSat.setHours(0, 0, 0, 0);
+
+  const embed = new EmbedBuilder()
+    .setTitle("⏰ Next Weekly Reset")
+    .setDescription(
+      `The study room leaderboard resets every **Saturday at 12:00 AM**.\n\n` +
+      `**Time remaining:** ${timeLeft}\n` +
+      `**Next reset:** ${nextSat.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`
+    )
+    .setColor(0xe67e22)
+    .setFooter({ text: "The winner (most voice time) is announced at each reset!" });
+
+  await interaction.reply({ embeds: [embed], ephemeral: false });
 }
 
 /**
