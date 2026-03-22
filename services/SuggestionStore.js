@@ -41,6 +41,11 @@ class SuggestionStore {
           date       TEXT NOT NULL,
           PRIMARY KEY (user_hash, date)
         );
+
+        CREATE TABLE IF NOT EXISTS welcomed_members (
+          user_id      TEXT    PRIMARY KEY,
+          welcomed_at  INTEGER NOT NULL
+        );
       `);
       logger.info('SuggestionStore initialized', { dbPath: this.dbPath });
     } catch (error) {
@@ -76,6 +81,21 @@ class SuggestionStore {
     this.db
       .prepare('INSERT OR IGNORE INTO suggestion_limits (user_hash, date) VALUES (?, ?)')
       .run(this._hash(userId), this._today());
+  }
+
+  /** Returns true if this user has NOT been welcomed yet */
+  canWelcome(userId) {
+    const row = this.db
+      .prepare('SELECT 1 FROM welcomed_members WHERE user_id = ?')
+      .get(userId);
+    return !row;
+  }
+
+  /** Marks a user as welcomed (idempotent) */
+  markWelcomed(userId) {
+    this.db
+      .prepare('INSERT OR IGNORE INTO welcomed_members (user_id, welcomed_at) VALUES (?, ?)')
+      .run(userId, Date.now());
   }
 
   /** Returns all suggestions newest-first */

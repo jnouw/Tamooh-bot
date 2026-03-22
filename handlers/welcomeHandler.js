@@ -3,6 +3,7 @@ import { existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { CONFIG } from "../config.js";
+import { suggestionStore } from "../services/SuggestionStore.js";
 import { logger } from "../utils/logger.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -11,10 +12,21 @@ const WELCOME_IMAGE_PATH = join(__dirname, "../assets/welcome.png");
 /**
  * Sends the Qimah welcome message tagging the new member and key channels.
  * Called after a member passes membership screening.
+ * Uses DB-backed dedup so it fires exactly once per user even across restarts.
  * @param {import("discord.js").GuildMember} member
+ * @param {boolean} force - skip dedup check (for !testwelcome)
  */
-export async function sendWelcomeMessage(member) {
+export async function sendWelcomeMessage(member, force = false) {
   if (!CONFIG.WELCOME.ENABLED) return;
+
+  // DB-backed dedup — prevents sending more than once per user
+  if (!force) {
+    if (!suggestionStore.canWelcome(member.id)) {
+      logger.info("Welcome already sent, skipping", { userId: member.id });
+      return;
+    }
+    suggestionStore.markWelcomed(member.id);
+  }
 
   const channelId = CONFIG.WELCOME.CHANNEL_ID;
   if (!channelId) {

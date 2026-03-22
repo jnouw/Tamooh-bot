@@ -391,7 +391,7 @@ client.on("messageCreate", async (message) => {
         return message.reply("❌ Admins only.");
       }
       const target = message.mentions.members?.first() || message.member;
-      await sendWelcomeMessage(target);
+      await sendWelcomeMessage(target, true); // force=true bypasses dedup for testing
       await message.reply(`✅ Welcome message sent for ${target}.`);
     }
   } catch (error) {
@@ -558,18 +558,10 @@ client.on("guildMemberAdd", async (member) => {
   await logMemberApplication(member);
 });
 
-// Dedup set — prevents duplicate welcome/log if Discord fires guildMemberUpdate multiple times
-const screeningPassedIds = new Set();
-
 // Membership screening pass logging + welcome message
 client.on("guildMemberUpdate", async (oldMember, newMember) => {
   // Check if user just passed membership screening
   if (oldMember.pending && !newMember.pending) {
-    // Synchronous dedup check before any await — prevents race condition duplicates
-    if (screeningPassedIds.has(newMember.id)) return;
-    screeningPassedIds.add(newMember.id);
-    setTimeout(() => screeningPassedIds.delete(newMember.id), 60_000);
-
     await logScreeningPass(newMember);
     await sendWelcomeMessage(newMember);
   }
