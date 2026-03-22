@@ -54,6 +54,7 @@ import {
   handleEnterCodeButton,
   handleCodeModalSubmit
 } from "./handlers/verifyHandlers.js";
+import { sendWelcomeMessage } from "./handlers/welcomeHandler.js";
 import { postSuggestionPanel, handleSuggestButton, handleSuggestModal } from "./handlers/suggestionHandler.js";
 import { suggestionStore } from "./services/SuggestionStore.js";
 import { verificationStore } from "./services/VerificationStore.js";
@@ -550,10 +551,11 @@ client.on("guildMemberAdd", async (member) => {
   await logMemberApplication(member);
 });
 
-// Membership screening pass logging
+// Membership screening pass logging + welcome message
 client.on("guildMemberUpdate", async (oldMember, newMember) => {
   if (oldMember.pending && !newMember.pending) {
     await logScreeningPass(newMember);
+    await sendWelcomeMessage(newMember);
   }
 });
 
