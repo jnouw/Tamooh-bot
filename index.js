@@ -386,6 +386,13 @@ client.on("messageCreate", async (message) => {
       }
       await postSuggestionPanel(client, CONFIG.SUGGESTIONS.CHANNEL_ID);
       await message.reply("✅ Suggestion panel posted!");
+    } else if (command === "testwelcome") {
+      if (!message.member?.permissions.has("Administrator")) {
+        return message.reply("❌ Admins only.");
+      }
+      const target = message.mentions.members?.first() || message.member;
+      await sendWelcomeMessage(target, true);
+      await message.reply(`✅ Welcome message sent for ${target}.`);
     }
   } catch (error) {
     logger.error("Message command error", {
