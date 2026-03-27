@@ -1,4 +1,4 @@
-import { EmbedBuilder, AttachmentBuilder } from "discord.js";
+import { EmbedBuilder } from "discord.js";
 import { existsSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -7,7 +7,7 @@ import { CONFIG } from "../config.js";
 import { logger } from "../utils/logger.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const WELCOME_IMAGE_PATH = join(__dirname, "../assets/welcome.png");
+const WELCOME_IMAGE_URL = "https://media.discordapp.net/attachments/1421591829647982604/1484037310612770938/image.png?ex=69c7f9b2&is=69c6a832&hm=6adc43855229b126060187d3c81ae805b7019de718038957629ac4020389d751&=&format=webp&quality=lossless&width=864&height=864";
 
 // Persistent store — ensures welcome fires exactly once per user, even across restarts
 const dataDir = join(__dirname, "../data");
@@ -58,19 +58,18 @@ export async function sendWelcomeMessage(member, force = false) {
 
   const ticketsMention = TICKETS_CHANNEL_ID ? `<#${TICKETS_CHANNEL_ID}>` : `#📩open-tickets`;
   const guideMention   = GUIDE_CHANNEL_ID   ? `<#${GUIDE_CHANNEL_ID}>`   : `#❓guide-me`;
-  const videoLine      = NEW_USER_VIDEO_URL
-    ? `تقدر تشوف شرح مفصل هنا:\n${NEW_USER_VIDEO_URL}`
-    : `تقدر تشوف شرح مفصل هنا`;
 
   const description = [
     `Welcome ${member} to Qimah!`,
     `حياك الله ${member} في سيرفر قمة`,
     ``,
     `**New to discord?**`,
-    videoLine,
+    `تقدر تشوف شرح مفصل هنا:`,
+    NEW_USER_VIDEO_URL ?? ``,
     ``,
-    `**Chatting**`,
-    `تبي تسولف مع المجتمع؟ اضغط هنا — <#${CHAT_CHANNEL_ID}>-💬`,
+    `**Chatting:**`,
+    `تبي تسولف مع المجتمع؟ اضغط هنا —`,
+    `<#${CHAT_CHANNEL_ID}>`,
     ``,
     `**Voice Channels**`,
     `اضغط على زر المكالمة باليسار عشان تدخل مع غيرك. سلم، ذاكر، وعادي لو تجلس وتحط ميوت، ما فيها حرج.`,
@@ -83,20 +82,12 @@ export async function sendWelcomeMessage(member, force = false) {
     guideMention,
   ].join("\n");
 
-  const hasImage = existsSync(WELCOME_IMAGE_PATH);
-
   const embed = new EmbedBuilder()
     .setColor(CONFIG.WELCOME.COLOR)
-    .setDescription(description);
-
-  if (hasImage) {
-    embed.setImage("attachment://welcome.png");
-  }
+    .setDescription(description)
+    .setImage(WELCOME_IMAGE_URL);
 
   const payload = { embeds: [embed] };
-  if (hasImage) {
-    payload.files = [new AttachmentBuilder(WELCOME_IMAGE_PATH, { name: "welcome.png" })];
-  }
 
   // Mark BEFORE sending so concurrent events can't slip through
   markWelcomed(member.id);
